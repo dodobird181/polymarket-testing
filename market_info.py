@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from json import loads
 from time import time
 from zoneinfo import ZoneInfo
@@ -12,6 +13,12 @@ from requests.exceptions import HTTPError
 class Btc5MinClobs:
     up: str
     down: str
+
+
+class Btc5MinMarketOutcome(Enum):
+    UNRESOLVED = "unresolved"
+    UP = "up"
+    DOWN = "down"
 
 
 class MarketNotFound(Exception): ...
@@ -54,6 +61,8 @@ def get_market_by_slug(slug: str) -> dict:
         data = response.json()
         if data is None or not isinstance(data, list) or len(data) < 1:
             raise MarketNotFound(f"No market data found for slug: {slug}.")
+        if len(data[0]["markets"]) != 1:
+            raise AssertionError("Expected BTC Up/Down market response to contain exactly 1 market!")
         return data[0]
     except HTTPError as e:
         raise MarketNotFound from e
@@ -67,11 +76,26 @@ def get_current_market_clobs() -> Btc5MinClobs:
     ts = current_window_start()
     slug = current_window_slug(ts)
     market = get_market_by_slug(slug)
-    if len(market["markets"]) != 1:
-        raise AssertionError("Expected BTC Up/Down market response to contain exactly 1 market!")
     outcomes = loads(market["markets"][0]["outcomes"])
     if len(outcomes) != 2:
         raise AssertionError("Expected BTC Up/Down market response to contain exactly 2 outcomes!")
     tids = loads(market["markets"][0]["clobTokenIds"])
     market_clobs = dict(zip([x.lower() for x in outcomes], tids))
     return Btc5MinClobs(up=market_clobs["up"], down=market_clobs["down"])
+
+
+def get_market_outcome_from_slug(slug: str) -> Btc5MinMarketOutcome:
+    market = get_market_by_slug(slug)
+    outcomes = loads(market["markets"][0]["outcomes"])
+    if len(outcomes) != 2:
+        raise AssertionError("Expected BTC Up/Down market response to contain exactly 2 outcomes!")
+    probabilities = loads(market["markets"][0]["outcomePrices"])
+    if market["closed"] == True:
+        market_probs = dict(zip([x.lower() for x in outcomes], probabilities))
+        if float(market_probs["up"]) == 1:
+            return Btc5MinMarketOutcome.UP
+        elif float(market_probs["down"]) == 1:
+            return Btc5MinMarketOutcome.DOWN
+        else:
+            raise AssertionError("Expected a market to have one outcome with price == 1 after close.")
+    return Btc5MinMarketOutcome.UNRESOLVED
