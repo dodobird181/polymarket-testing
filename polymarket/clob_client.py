@@ -76,23 +76,22 @@ def get_trades(
     condition_id: str,
     start_ts: int | None = None,
     end_ts: int | None = None,
+    limit: int = 10_000,
 ) -> list[Trade]:
     """
-    Fetch all on-chain trades for a market from the public data API.
+    Fetch on-chain trades for a market from the public data API.
 
-    The data-api does not support timestamp filtering — we fetch up to 10,000
-    trades (the API maximum) and filter client-side by start_ts/end_ts.
+    IMPORTANT: the data-api has a freshness lag at large limits.
+      - limit ≤ ~20 : hits a hot cache, returns the very latest trades.
+      - limit ≥ 500 : hits a slower store; trades from the last ~30s are absent.
+    For live monitoring use limit=50. For closed-market backtests use limit=10_000.
 
+    The data-api does not support timestamp filtering — filtering is done client-side.
     Returns trades sorted by timestamp ascending.
-
-    Args:
-        condition_id: The 0x-prefixed conditionId from the Gamma API.
-        start_ts:     Keep only trades at or after this unix timestamp.
-        end_ts:       Keep only trades at or before this unix timestamp.
     """
     resp = requests.get(
         f"{DATA_API_BASE}/trades",
-        params={"market": condition_id, "limit": 10_000},
+        params={"market": condition_id, "limit": limit},
         timeout=30,
     )
     resp.raise_for_status()
