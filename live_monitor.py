@@ -41,6 +41,7 @@ class Trade:
     clob: str
     side: Side
     amount: float
+    price: float
 
     # datetime for logging
     dt: datetime = datetime.now()
@@ -109,6 +110,7 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
                 clob=state.clobs.up,
                 side=Trade.Side.BUY,
                 amount=amount,
+                price=state.price.up,
             )
         elif in_buy_threshold(state.price.down):
             trade = Trade(
@@ -116,6 +118,7 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
                 clob=state.clobs.down,
                 side=Trade.Side.BUY,
                 amount=amount,
+                price=state.price.down,
             )
 
     return Strategy.Result(trade, {"window": window})
@@ -184,7 +187,10 @@ def poll_current_market() -> LiveMarketState:
 
 def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) -> None:
     LOG_FILE.parent.mkdir(exist_ok=True)
-    entry = {"state": asdict(state), "outcome": outcome.value}
+    entry = {
+        "state": asdict(state) | {"trade": asdict(state.trade) if state.trade is not None else None},
+        "outcome": str(outcome.name),
+    }
     with LOG_FILE.open("a") as f:
         f.write(dumps(entry) + "\n")
     print(f"\n  [LOG] {entry}")
@@ -201,26 +207,32 @@ if __name__ == "__main__":
 
     while True:
 
-        state = poll_current_market()
+        start_ts = current_window_start()
+        slug = current_window_slug(start_ts)
+        if slug not in unresolved_markets:
+            state = poll_current_market()
 
-        # see if any of the previous markets have been resolved and log
-        for old_slug in unresolved_markets:
-            old_state: LiveMarketState = unresolved_markets[old_slug]
-            outcome = get_market_outcome_from_slug(old_state.slug)
-            if outcome == Btc5MinMarketOutcome.UNRESOLVED:
-                print(f"WARNING: {old_slug} still unresolved!")
-            else:
-                log_market_outcome(old_state, outcome)
-                flush.append(old_slug)
-        for resolved_slug in flush:
-            unresolved_markets.pop(resolved_slug)
+            # see if any of the previous markets have been resolved and log
+            for old_slug in unresolved_markets:
+                old_state: LiveMarketState = unresolved_markets[old_slug]
+                outcome = get_market_outcome_from_slug(old_state.slug)
+                if outcome == Btc5MinMarketOutcome.UNRESOLVED:
+                    pass
+                else:
+                    log_market_outcome(old_state, outcome)
+                    flush.append(old_slug)
+            for resolved_slug in flush:
+                if resolved_slug in unresolved_markets:
+                    unresolved_markets.pop(resolved_slug)
 
-        if state.slug not in unresolved_markets:
-            # stop from adding more market results if they already exist in the unresolved_markets
-            # dictionary. this can happen near the edges of when a market is resolved.
-            unresolved_markets[state.slug] = state
+            if state.slug not in unresolved_markets:
+                # stop from adding more market results if they already exist in the unresolved_markets
+                # dictionary. this can happen near the edges of when a market is resolved.
+                unresolved_markets[state.slug] = state
+        else:
+            print(f"Strategy exited early for market {slug}. Waiting for next market to open...")
 
         # just adding a little buffer here for checking when the new market is open
-        # it shoudn't matter for most strategies to get in 2 seconds after market open...
-        print(f"Unresolved markets: {unresolved_markets.keys()}.")
-        sleep(2)
+        # it shoudn't matter for most strategies to get in 5 seconds after market open...
+        print(f"Unresolved markets: {[x for x in unresolved_markets.keys()]}.")
+        sleep(5)
