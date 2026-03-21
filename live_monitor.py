@@ -30,12 +30,12 @@ class Trade:
     """
 
     class Side(Enum):
-        BUY = "BUY"
-        SELL = "SELL"
+        BUY = "buy"
+        SELL = "sell"
 
     class Outcome(Enum):
-        UP = "UP"
-        DOWN = "DOWN"
+        UP = "up"
+        DOWN = "down"
 
     outcome: Outcome
     clob: str
@@ -44,7 +44,7 @@ class Trade:
     price: float
 
     # datetime for logging
-    dt: datetime = datetime.now()
+    dt: float = datetime.now().timestamp()
 
 
 @dataclass
@@ -66,6 +66,19 @@ class LiveMarketState:
     price: EstimatedPrice
     clobs: Btc5MinClobs
     trade: Trade | None
+
+    def to_dict(self) -> dict:
+        return asdict(self) | {
+            "trade": (
+                asdict(self.trade)
+                | {
+                    "side": self.trade.side.value,
+                    "outcome": self.trade.outcome.value,
+                }
+                if self.trade
+                else None
+            )
+        }
 
 
 @dataclass
@@ -188,8 +201,8 @@ def poll_current_market() -> LiveMarketState:
 def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) -> None:
     LOG_FILE.parent.mkdir(exist_ok=True)
     entry = {
-        "state": asdict(state) | {"trade": asdict(state.trade) if state.trade is not None else None},
-        "outcome": str(outcome.name),
+        "state": state.to_dict(),
+        "outcome": outcome.value,
     }
     with LOG_FILE.open("a") as f:
         f.write(dumps(entry) + "\n")
@@ -197,6 +210,27 @@ def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) ->
 
 
 if __name__ == "__main__":
+    # ts = current_window_start()
+    # log_market_outcome(
+    #     state=LiveMarketState(
+    #         start_ts=ts,
+    #         slug=current_window_slug(ts),
+    #         start_EST=to_EST(ts),
+    #         elapsed_seconds=0,
+    #         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
+    #         clobs=Btc5MinClobs(up="DUMMY_CLOB", down="DUMMY_CLOB"),
+    #         trade=Trade(
+    #             outcome=Trade.Outcome.DOWN,
+    #             side=Trade.Side.BUY,
+    #             amount=10.532,
+    #             price=0.91,
+    #             clob="DUMMY_CLOB",
+    #             dt=datetime.now().timestamp(),
+    #         ),
+    #     ),
+    #     outcome=Btc5MinMarketOutcome.UNRESOLVED,
+    # )
+    # exit(0)
 
     # track past markets to record their outcomes after they've closed
     # key = slug, value = LiveMarketState
