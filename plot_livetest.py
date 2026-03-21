@@ -5,7 +5,7 @@ import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
-JSONL_FILE = "later_window_strat.jsonl"
+JSONL_FILE = "stoploss_strat_35.jsonl"
 
 records = []
 with open(JSONL_FILE) as f:

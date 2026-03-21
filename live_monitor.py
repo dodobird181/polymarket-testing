@@ -46,7 +46,7 @@ class Trade:
     price: float
 
     # datetime for logging
-    dt: float = datetime.now().timestamp()
+    dt: float
 
     def display_str(self) -> str:
         return f"{self.side} ${self.amount} of {self.outcome.name} at ${self.price}"
@@ -122,6 +122,7 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.up,
+                    dt=datetime.now().timestamp(),
                 )
             elif in_buy_threshold(state.price.down):
                 trade = Trade(
@@ -130,6 +131,7 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.down,
+                    dt=datetime.now().timestamp(),
                 )
 
     return Strategy.Result(trade, {"window": window})
@@ -163,6 +165,7 @@ def run_sam_strategy_with_stop_loss(state: LiveMarketState) -> Strategy.Result:
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.up,
+                    dt=datetime.now().timestamp(),
                 )
             elif in_buy_threshold(state.price.down):
                 trade = Trade(
@@ -171,6 +174,7 @@ def run_sam_strategy_with_stop_loss(state: LiveMarketState) -> Strategy.Result:
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.down,
+                    dt=datetime.now().timestamp(),
                 )
     elif len(state.trades) == 1:
         # protect downside losses by selling
@@ -182,6 +186,7 @@ def run_sam_strategy_with_stop_loss(state: LiveMarketState) -> Strategy.Result:
                 side=Trade.Side.SELL,
                 amount=amount,
                 price=state.price.up,
+                dt=datetime.now().timestamp(),
             )
         elif buy_trade.outcome == Trade.Outcome.DOWN and state.price.down <= 0.35:
             trade = Trade(
@@ -190,6 +195,7 @@ def run_sam_strategy_with_stop_loss(state: LiveMarketState) -> Strategy.Result:
                 side=Trade.Side.SELL,
                 amount=amount,
                 price=state.price.down,
+                dt=datetime.now().timestamp(),
             )
 
     return Strategy.Result(trade, {"window": window})
@@ -223,6 +229,7 @@ def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Re
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.up,
+                    dt=datetime.now().timestamp(),
                 )
             elif in_buy_threshold(state.price.down):
                 trade = Trade(
@@ -231,6 +238,7 @@ def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Re
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.down,
+                    dt=datetime.now().timestamp(),
                 )
 
     return Strategy.Result(trade, {"window": window})
@@ -307,6 +315,9 @@ if __name__ == "__main__":
     DEFAULT_LOGFILE = "livetest.jsonl"
     DEFAULT_STRATEGY = Strategy(run=run_sam_strategy)
 
+    if len(argv) == 4:
+        # include paramfile name when loading the strategy...
+        ...
     if len(argv) == 3:
         LOG_FILE = Path(argv[1])
         try:
