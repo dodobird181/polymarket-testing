@@ -2,6 +2,10 @@
 .vscode
 .env
 
+strategy_logs/
+strategy_files/
+strategy_plots/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

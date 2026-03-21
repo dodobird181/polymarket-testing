@@ -3,3 +3,4 @@ run_sam_strategy_with_stop_loss: PYTHONUNBUFFERED=1 poetry run python live_monit
 run_high_buy_30_stoploss: PYTHONUNBUFFERED=1 poetry run python live_monitor.py strategy_logs/run_high_buy_30_stoploss.jsonl run_high_buy_30_stoploss
 
 plot_watcher: PYTHONUNBUFFERED=1 poetry run python plot_watcher.py strategy_logs
+procfile_regenerator: PYTHONUNBUFFERED=1 poetry run python procfile_regenerator.py

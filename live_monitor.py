@@ -374,20 +374,36 @@ def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) ->
     logger.info(dumps(entry, indent=2))
 
 
+def load_strategy_from_file(path: str) -> Strategy:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("user_strategy", path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not load strategy file: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore
+    if not hasattr(module, "run_strategy"):
+        raise ValueError(f"{path} must define a function named 'run_strategy'.")
+    return Strategy(run=module.run_strategy)
+
+
 if __name__ == "__main__":
 
     DEFAULT_LOGFILE = "livetest.jsonl"
     DEFAULT_STRATEGY = Strategy(run=run_sam_strategy)
 
-    if len(argv) == 4:
-        # include paramfile name when loading the strategy...
-        ...
+    STRATEGY_FILE: str | None = None
+
     if len(argv) == 3:
         LOG_FILE = Path(argv[1])
-        try:
-            STRATEGY = Strategy(run=globals()[argv[2]])
-        except Exception as e:
-            raise ValueError(f"Could not find strategy function {argv[2]}.")
+        arg = argv[2]
+        if arg.endswith(".py") or "/" in arg:
+            STRATEGY_FILE = arg
+            STRATEGY = load_strategy_from_file(arg)
+        else:
+            try:
+                STRATEGY = Strategy(run=globals()[arg])
+            except KeyError:
+                raise ValueError(f"Could not find strategy function '{arg}'.")
     elif len(argv) == 2:
         LOG_FILE = Path(argv[1])
         STRATEGY = DEFAULT_STRATEGY
@@ -395,7 +411,7 @@ if __name__ == "__main__":
         LOG_FILE = Path(DEFAULT_LOGFILE)
         STRATEGY = DEFAULT_STRATEGY
     else:
-        raise Exception("Usage: python live_monitor.py [logfile_name.jsonl] [strategy_func_name]")
+        raise Exception("Usage: python live_monitor.py [logfile_name.jsonl] [strategy_file.py|strategy_func_name]")
 
     # track past markets to record their outcomes after they've closed
     # key = slug, value = LiveMarketState
@@ -408,6 +424,9 @@ if __name__ == "__main__":
 
         start_ts = current_window_start()
         slug = current_window_slug(start_ts)
+        if STRATEGY_FILE:
+            STRATEGY = load_strategy_from_file(STRATEGY_FILE)
+
         if slug not in unresolved_markets:
 
             logger.info(
