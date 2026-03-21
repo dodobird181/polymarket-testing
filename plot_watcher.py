@@ -15,7 +15,7 @@ if __name__ == "__main__":
     else:
         raise ValueError("Usage: python plot_watcher.py <log_dirname>")
 
-    logger.info("Scanning '%s' for logfiles to plot...", LOG_DIRNAME)
+    logger.info("Watching '%s' for logfiles to plot...", LOG_DIRNAME)
 
     # additional variable to make sure we only re-calculate the plots ONCE ever 5 mins,
     # even though we poll more than once per second.

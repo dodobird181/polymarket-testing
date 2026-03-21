@@ -1,7 +1,0 @@
-{
-    "window_start": 180,
-    "window_end": 300,
-    "min_buy_price": 0.95,
-    "max_buy_price": 0.99,
-    "stop_loss_price": 0.3
-}

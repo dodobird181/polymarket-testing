@@ -1,2 +1,5 @@
-run_sam_strategy_higher_buy_threshold: PYTHONUNBUFFERED=1 poetry run python live_monitor.py higher_buy_threshold.jsonl run_sam_strategy_higher_buy_threshold
-run_sam_strategy_with_stop_loss: PYTHONUNBUFFERED=1 poetry run python live_monitor.py stoploss_strat_35.jsonl run_sam_strategy_with_stop_loss
+run_sam_strategy_higher_buy_threshold: PYTHONUNBUFFERED=1 poetry run python live_monitor.py strategy_logs/higher_buy_threshold.jsonl run_sam_strategy_higher_buy_threshold
+run_sam_strategy_with_stop_loss: PYTHONUNBUFFERED=1 poetry run python live_monitor.py strategy_logs/stoploss_strat_35.jsonl run_sam_strategy_with_stop_loss
+run_high_buy_30_stoploss: PYTHONUNBUFFERED=1 poetry run python live_monitor.py strategy_logs/run_high_buy_30_stoploss.jsonl run_high_buy_30_stoploss
+
+plot_watcher: PYTHONUNBUFFERED=1 poetry run python plot_watcher.py strategy_logs
