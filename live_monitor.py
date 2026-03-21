@@ -10,6 +10,7 @@ from typing import Callable
 from py_clob_client.clob_types import OrderType
 
 from clob_client import get_client
+from log_config import getLogger
 from market_info import (
     Btc5MinClobs,
     Btc5MinMarketOutcome,
@@ -20,6 +21,8 @@ from market_info import (
     get_market_outcome_from_slug,
     to_EST,
 )
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -239,11 +242,12 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
     client = get_client()
     clobs = get_current_market_clobs()
     start_ts = current_window_start()
+    startEST = to_EST(start_ts)
     slug = current_window_slug(start_ts)
     state = LiveMarketState(
         slug=slug,
         start_ts=start_ts,
-        start_EST=to_EST(start_ts),
+        start_EST=startEST,
         elapsed_seconds=0,
         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
         clobs=clobs,
@@ -284,23 +288,18 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
             )
         except Exception:
             return state
-        print(
-            f"\r{state.slug} {state.elapsed_seconds}s :: {state.price.__dict__} {[trade.display_str() for trade in state.trades] if len(state.trades) > 0 else "[No Trades]"} {strategy_result.metadata}             ",
-            end="",
-            flush=True,
+        logger.debug(
+            f"{state.slug} {state.elapsed_seconds}s :: {state.price.__dict__} {[trade.display_str() for trade in state.trades] if len(state.trades) > 0 else '[No Trades]'} {strategy_result.metadata}"
         )
         sleep(0.1)
 
 
 def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) -> None:
     LOG_FILE.parent.mkdir(exist_ok=True)
-    entry = {
-        "state": state.to_dict(),
-        "outcome": outcome.value,
-    }
+    entry = {"state": state.to_dict(), "outcome": outcome.value}
     with LOG_FILE.open("a") as f:
         f.write(dumps(entry) + "\n")
-    print(f"\n  [LOG] {entry}")
+    logger.info(dumps(entry, indent=2))
 
 
 if __name__ == "__main__":
@@ -335,6 +334,20 @@ if __name__ == "__main__":
         start_ts = current_window_start()
         slug = current_window_slug(start_ts)
         if slug not in unresolved_markets:
+
+            logger.info(
+                "Starting poll %s",
+                dumps(
+                    {
+                        "market": slug,
+                        "start_EST": to_EST(start_ts),
+                        "strategy": STRATEGY.run.__name__,
+                        "logfile": LOG_FILE.name,
+                    },
+                    indent=2,
+                ),
+            )
+
             state = poll_current_market(strategy=STRATEGY)
 
             # see if any of the previous markets have been resolved and log
@@ -355,9 +368,9 @@ if __name__ == "__main__":
                 # dictionary. this can happen near the edges of when a market is resolved.
                 unresolved_markets[state.slug] = state
         else:
-            print(f"Strategy exited early for market {slug}. Waiting for next market to open...")
+            logger.debug(f"Strategy exited early for market {slug}. Waiting for next market to open...")
 
         # just adding a little buffer here for checking when the new market is open
         # it shoudn't matter for most strategies to get in 5 seconds after market open...
-        print(f"Unresolved markets: {[x for x in unresolved_markets.keys()]}.")
+        logger.debug(f"Unresolved markets: {[x for x in unresolved_markets.keys()]}.")
         sleep(5)

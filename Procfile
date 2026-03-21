@@ -1,1 +1,2 @@
-worker: PYTHONUNBUFFERED=1 poetry run python live_monitor.py
+run_sam_strategy_higher_buy_threshold: PYTHONUNBUFFERED=1 poetry run python live_monitor.py higher_buy_threshold.jsonl run_sam_strategy_higher_buy_threshold
+run_sam_strategy_with_stop_loss: PYTHONUNBUFFERED=1 poetry run python live_monitor.py stoploss_strat_35.jsonl run_sam_strategy_with_stop_loss
