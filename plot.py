@@ -84,7 +84,7 @@ def plot(logfile: str, savefile: str, show=False):
         ("Losses", str(num_losses), "white"),
         ("Trades", str(num_trades), "white"),
         ("Markets", str(total_markets), "white"),
-        ("Avg Price", f"{avg_price:.3f}", "white"),
+        # ("Avg Price", f"{avg_price:.3f}", "white"),
         ("P&L", f"${total_pnl:+.2f}", pnl_color),
         ("Return", f"{pct_return:+.1f}%", pnl_color),
     ]
