@@ -1,0 +1,1 @@
+worker: PYTHONUNBUFFERED=1 poetry run python live_monitor.py

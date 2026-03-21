@@ -1,8 +1,9 @@
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from json import dumps
 from pathlib import Path
+from sys import argv
 from time import sleep
 from typing import Callable
 
@@ -19,8 +20,6 @@ from market_info import (
     get_market_outcome_from_slug,
     to_EST,
 )
-
-LOG_FILE = Path("livetest.jsonl")
 
 
 @dataclass
@@ -46,6 +45,9 @@ class Trade:
     # datetime for logging
     dt: float = datetime.now().timestamp()
 
+    def display_str(self) -> str:
+        return f"{self.side} ${self.amount} of {self.outcome.name} at ${self.price}"
+
 
 @dataclass
 class LiveMarketState:
@@ -65,19 +67,11 @@ class LiveMarketState:
 
     price: EstimatedPrice
     clobs: Btc5MinClobs
-    trade: Trade | None
+    trades: list[Trade] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self) | {
-            "trade": (
-                asdict(self.trade)
-                | {
-                    "side": self.trade.side.value,
-                    "outcome": self.trade.outcome.value,
-                }
-                if self.trade
-                else None
-            )
+            "trades": [asdict(t) | {"side": t.side.value, "outcome": t.outcome.value} for t in self.trades]
         }
 
 
@@ -100,9 +94,50 @@ class Strategy:
 def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
 
     def get_window():
-        if state.elapsed_seconds < 120:
+        if state.elapsed_seconds < 180:
             return "before"
-        elif state.elapsed_seconds >= 120 and state.elapsed_seconds < 240:
+        elif state.elapsed_seconds >= 180 and state.elapsed_seconds < 270:
+            return "can_trigger"
+        else:
+            return "after"
+
+    def in_buy_threshold(price: float, min=0.9, max=0.95) -> bool:
+        return price >= min and price <= max
+
+    def get_buy_amount():
+        return 10
+
+    trade = None
+    window = get_window()
+    if len(state.trades) == 0:
+        amount = get_buy_amount()
+        if window == "can_trigger":
+            if in_buy_threshold(state.price.up):
+                trade = Trade(
+                    outcome=Trade.Outcome.UP,
+                    clob=state.clobs.up,
+                    side=Trade.Side.BUY,
+                    amount=amount,
+                    price=state.price.up,
+                )
+            elif in_buy_threshold(state.price.down):
+                trade = Trade(
+                    outcome=Trade.Outcome.DOWN,
+                    clob=state.clobs.down,
+                    side=Trade.Side.BUY,
+                    amount=amount,
+                    price=state.price.down,
+                )
+
+    return Strategy.Result(trade, {"window": window})
+
+
+def run_sam_strategy_with_stop_loss(state: LiveMarketState) -> Strategy.Result:
+
+    def get_window():
+        if state.elapsed_seconds < 180:
+            return "before"
+        elif state.elapsed_seconds >= 180 and state.elapsed_seconds < 270:
             return "can_trigger"
         else:
             return "after"
@@ -116,20 +151,40 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
     trade = None
     window = get_window()
     amount = get_buy_amount()
-    if window == "can_trigger":
-        if in_buy_threshold(state.price.up):
+    if len(state.trades) == 0:
+        if window == "can_trigger":
+            if in_buy_threshold(state.price.up):
+                trade = Trade(
+                    outcome=Trade.Outcome.UP,
+                    clob=state.clobs.up,
+                    side=Trade.Side.BUY,
+                    amount=amount,
+                    price=state.price.up,
+                )
+            elif in_buy_threshold(state.price.down):
+                trade = Trade(
+                    outcome=Trade.Outcome.DOWN,
+                    clob=state.clobs.down,
+                    side=Trade.Side.BUY,
+                    amount=amount,
+                    price=state.price.down,
+                )
+    elif len(state.trades) == 1:
+        # protect downside losses by selling
+        buy_trade = state.trades[0]
+        if buy_trade.outcome == Trade.Outcome.UP and state.price.up <= 0.35:
             trade = Trade(
                 outcome=Trade.Outcome.UP,
                 clob=state.clobs.up,
-                side=Trade.Side.BUY,
+                side=Trade.Side.SELL,
                 amount=amount,
                 price=state.price.up,
             )
-        elif in_buy_threshold(state.price.down):
+        elif buy_trade.outcome == Trade.Outcome.DOWN and state.price.down <= 0.35:
             trade = Trade(
                 outcome=Trade.Outcome.DOWN,
                 clob=state.clobs.down,
-                side=Trade.Side.BUY,
+                side=Trade.Side.SELL,
                 amount=amount,
                 price=state.price.down,
             )
@@ -137,12 +192,52 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
     return Strategy.Result(trade, {"window": window})
 
 
-def poll_current_market() -> LiveMarketState:
+def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Result:
+
+    def get_window():
+        if state.elapsed_seconds < 180:
+            return "before"
+        elif state.elapsed_seconds >= 180 and state.elapsed_seconds < 300:
+            return "can_trigger"
+        else:
+            return "after"
+
+    def in_buy_threshold(price: float, min=0.95, max=0.985) -> bool:
+        return price >= min and price <= max
+
+    def get_buy_amount():
+        return 10
+
+    trade = None
+    window = get_window()
+    if len(state.trades) == 0:
+        amount = get_buy_amount()
+        if window == "can_trigger":
+            if in_buy_threshold(state.price.up):
+                trade = Trade(
+                    outcome=Trade.Outcome.UP,
+                    clob=state.clobs.up,
+                    side=Trade.Side.BUY,
+                    amount=amount,
+                    price=state.price.up,
+                )
+            elif in_buy_threshold(state.price.down):
+                trade = Trade(
+                    outcome=Trade.Outcome.DOWN,
+                    clob=state.clobs.down,
+                    side=Trade.Side.BUY,
+                    amount=amount,
+                    price=state.price.down,
+                )
+
+    return Strategy.Result(trade, {"window": window})
+
+
+def poll_current_market(strategy: Strategy) -> LiveMarketState:
 
     # initialize live monitor for the current 5-min market
     client = get_client()
     clobs = get_current_market_clobs()
-    strategy = Strategy(run=run_sam_strategy)
     start_ts = current_window_start()
     slug = current_window_slug(start_ts)
     state = LiveMarketState(
@@ -152,7 +247,6 @@ def poll_current_market() -> LiveMarketState:
         elapsed_seconds=0,
         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
         clobs=clobs,
-        trade=None,
     )
 
     # start polling for price updates with out strategy
@@ -185,13 +279,13 @@ def poll_current_market() -> LiveMarketState:
                     ),
                 ),
                 clobs=state.clobs,
-                # record a trade in the live market state if one was made
-                trade=state.trade if state.trade is not None else strategy_result.trade,
+                # append new trade to list if one was signaled
+                trades=state.trades + ([strategy_result.trade] if strategy_result.trade is not None else []),
             )
         except Exception:
             return state
         print(
-            f"\r{state.slug} {state.elapsed_seconds}s :: {state.price.__dict__} {["BUY", state.trade.amount, state.trade.outcome.value.upper()] if state.trade is not None else "[No Trade]"} {strategy_result.metadata}             ",
+            f"\r{state.slug} {state.elapsed_seconds}s :: {state.price.__dict__} {[trade.display_str() for trade in state.trades] if len(state.trades) > 0 else "[No Trades]"} {strategy_result.metadata}             ",
             end="",
             flush=True,
         )
@@ -210,27 +304,24 @@ def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) ->
 
 
 if __name__ == "__main__":
-    # ts = current_window_start()
-    # log_market_outcome(
-    #     state=LiveMarketState(
-    #         start_ts=ts,
-    #         slug=current_window_slug(ts),
-    #         start_EST=to_EST(ts),
-    #         elapsed_seconds=0,
-    #         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
-    #         clobs=Btc5MinClobs(up="DUMMY_CLOB", down="DUMMY_CLOB"),
-    #         trade=Trade(
-    #             outcome=Trade.Outcome.DOWN,
-    #             side=Trade.Side.BUY,
-    #             amount=10.532,
-    #             price=0.91,
-    #             clob="DUMMY_CLOB",
-    #             dt=datetime.now().timestamp(),
-    #         ),
-    #     ),
-    #     outcome=Btc5MinMarketOutcome.UNRESOLVED,
-    # )
-    # exit(0)
+
+    DEFAULT_LOGFILE = "livetest.jsonl"
+    DEFAULT_STRATEGY = Strategy(run=run_sam_strategy)
+
+    if len(argv) == 3:
+        LOG_FILE = Path(argv[1])
+        try:
+            STRATEGY = Strategy(run=globals()[argv[2]])
+        except Exception as e:
+            raise ValueError(f"Could not find strategy function {argv[2]}.")
+    elif len(argv) == 2:
+        LOG_FILE = Path(argv[1])
+        STRATEGY = DEFAULT_STRATEGY
+    elif len(argv) == 1:
+        LOG_FILE = Path(DEFAULT_LOGFILE)
+        STRATEGY = DEFAULT_STRATEGY
+    else:
+        raise Exception("Usage: python live_monitor.py [logfile_name.jsonl] [strategy_func_name]")
 
     # track past markets to record their outcomes after they've closed
     # key = slug, value = LiveMarketState
@@ -244,7 +335,7 @@ if __name__ == "__main__":
         start_ts = current_window_start()
         slug = current_window_slug(start_ts)
         if slug not in unresolved_markets:
-            state = poll_current_market()
+            state = poll_current_market(strategy=STRATEGY)
 
             # see if any of the previous markets have been resolved and log
             for old_slug in unresolved_markets:
