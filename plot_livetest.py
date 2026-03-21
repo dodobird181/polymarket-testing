@@ -5,7 +5,7 @@ import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
-JSONL_FILE = "stoploss_strat_35.jsonl"
+JSONL_FILE = "higher_buy_threshold.jsonl"
 
 records = []
 with open(JSONL_FILE) as f:
@@ -55,7 +55,7 @@ win_rate = (num_wins / num_trades * 100) if num_trades > 0 else 0
 total_markets = len({r["state"]["slug"] for r in records})
 avg_price = sum(t["price"] for r in traded for t in get_trades(r["state"])) / num_trades if num_trades > 0 else 0
 
-total_pnl = sum(e["amount"] * (1 - e["price"]) for e in wins) + sum(-e["amount"] * e["price"] for e in losses)
+total_pnl = sum(e["pnl"] for e in wins + losses)
 total_invested = sum(e["amount"] * e["price"] for e in wins + losses)
 pct_return = (total_pnl / total_invested * 100) if total_invested > 0 else 0
 
