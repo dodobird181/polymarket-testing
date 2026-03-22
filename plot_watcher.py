@@ -6,6 +6,10 @@ from log_config import getLogger
 from market_info import current_window_start, elapsed
 from plot import plot
 
+"""
+Regenerates the plots in "strategy_plots/" every 5 minutes.
+"""
+
 logger = getLogger(__name__)
 
 if __name__ == "__main__":

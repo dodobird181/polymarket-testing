@@ -27,6 +27,7 @@ def toggle_enabled(filename: str):
 
 st.set_page_config(layout="wide")
 st.title("Strategies")
+st.write("NOTE: Enabling and disabling strategies will only take effect during the next 5-minute window.")
 
 files = sorted(f for f in os.listdir(DATA_DIR) if f.endswith(".py"))
 

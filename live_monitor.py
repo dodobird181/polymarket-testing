@@ -201,70 +201,6 @@ def run_sam_strategy_with_stop_loss(state: LiveMarketState) -> Strategy.Result:
     return Strategy.Result(trade, {"window": window})
 
 
-def run_high_buy_30_stoploss(state: LiveMarketState) -> Strategy.Result:
-
-    def get_window():
-        if state.elapsed_seconds < 180:
-            return "before"
-        elif state.elapsed_seconds >= 180 and state.elapsed_seconds < 300:
-            return "can_trigger"
-        else:
-            return "after"
-
-    def in_buy_threshold(price: float, min=0.95, max=0.99) -> bool:
-        return price >= min and price <= max
-
-    def get_buy_amount():
-        return 10
-
-    trade = None
-    window = get_window()
-    amount = get_buy_amount()
-    if len(state.trades) == 0:
-        if window == "can_trigger":
-            if in_buy_threshold(state.price.up):
-                trade = Trade(
-                    outcome=Trade.Outcome.UP,
-                    clob=state.clobs.up,
-                    side=Trade.Side.BUY,
-                    amount=amount,
-                    price=state.price.up,
-                    dt=datetime.now().timestamp(),
-                )
-            elif in_buy_threshold(state.price.down):
-                trade = Trade(
-                    outcome=Trade.Outcome.DOWN,
-                    clob=state.clobs.down,
-                    side=Trade.Side.BUY,
-                    amount=amount,
-                    price=state.price.down,
-                    dt=datetime.now().timestamp(),
-                )
-    elif len(state.trades) == 1:
-        # protect downside losses by selling
-        buy_trade = state.trades[0]
-        if buy_trade.outcome == Trade.Outcome.UP and state.price.up <= 0.30:
-            trade = Trade(
-                outcome=Trade.Outcome.UP,
-                clob=state.clobs.up,
-                side=Trade.Side.SELL,
-                amount=amount,
-                price=state.price.up,
-                dt=datetime.now().timestamp(),
-            )
-        elif buy_trade.outcome == Trade.Outcome.DOWN and state.price.down <= 0.30:
-            trade = Trade(
-                outcome=Trade.Outcome.DOWN,
-                clob=state.clobs.down,
-                side=Trade.Side.SELL,
-                amount=amount,
-                price=state.price.down,
-                dt=datetime.now().timestamp(),
-            )
-
-    return Strategy.Result(trade, {"window": window})
-
-
 def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Result:
 
     def get_window():
@@ -376,6 +312,7 @@ def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) ->
 
 def load_strategy_from_file(path: str) -> Strategy:
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("user_strategy", path)
     if spec is None or spec.loader is None:
         raise ValueError(f"Could not load strategy file: {path}")
