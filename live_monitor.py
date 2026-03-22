@@ -77,9 +77,9 @@ class LiveMarketState:
         down: float
 
     @dataclass
-    class BinanceData:
+    class KrakenData:
         """
-        BTC price binance data.
+        BTC price kraken data.
 
         NOTE:   This is not always 100% accurate because polymarket gets their price directly
                 from the blockchain. It is usually within about $5 USD from the polymarket price.
@@ -88,19 +88,16 @@ class LiveMarketState:
 
         @dataclass
         class Candle:
-            open_time: int  # ms
+            open_time: int  # seconds
             open: float
             high: float
             low: float
             close: float
+            vwap: float
             volume: float
-            close_time: int  # ms
-            quote_volume: float
             trade_count: int
-            taker_buy_volume: float
-            taker_buy_quote_volume: float
 
-        # The live market price according to Binance. NOTE: Updated every second.
+        # The live market price according to Kraken. NOTE: Updated every second.
         live_price: float
 
         # The BTC price at the start of the market interval.
@@ -118,7 +115,7 @@ class LiveMarketState:
 
     price: EstimatedPrice
     clobs: Btc5MinClobs
-    binance: BinanceData | None
+    kraken: KrakenData | None
     trades: list[Trade] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -127,15 +124,15 @@ class LiveMarketState:
         }
 
 
-def read_binance_data() -> LiveMarketState.BinanceData | None:
+def read_kraken_data() -> LiveMarketState.KrakenData | None:
     try:
         r = _get_redis()
-        raw_live, raw_history = r.get("binance:live"), r.get("binance:history")
+        raw_live, raw_history = r.get("kraken:live"), r.get("kraken:history")
         if raw_live is None or raw_history is None:
             return None
         data = loads(raw_live)  # type: ignore[arg-type]
-        Candle = LiveMarketState.BinanceData.Candle
-        return LiveMarketState.BinanceData(
+        Candle = LiveMarketState.KrakenData.Candle
+        return LiveMarketState.KrakenData(
             live_price=data["live_price"],
             window_start_price=data["window_start_price"],
             history=[
@@ -145,18 +142,15 @@ def read_binance_data() -> LiveMarketState.BinanceData | None:
                     high=float(k[2]),
                     low=float(k[3]),
                     close=float(k[4]),
-                    volume=float(k[5]),
-                    close_time=k[6],
-                    quote_volume=float(k[7]),
-                    trade_count=k[8],
-                    taker_buy_volume=float(k[9]),
-                    taker_buy_quote_volume=float(k[10]),
+                    vwap=float(k[5]),
+                    volume=float(k[6]),
+                    trade_count=k[7],
                 )
                 for k in loads(raw_history)  # type: ignore[arg-type]
             ],
         )
     except Exception as e:
-        logger.warning("Failed to load binance data.", exc_info=e)
+        logger.warning("Failed to load kraken data.", exc_info=e)
         return None
 
 
@@ -277,7 +271,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
         elapsed_seconds=0,
         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
         clobs=clobs,
-        binance=read_binance_data(),
+        kraken=read_kraken_data(),
     )
 
     # start polling for price updates with out strategy
@@ -323,20 +317,25 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 clobs=state.clobs,
                 # append new trade to list if one was signaled
                 trades=total_trades,
-                binance=read_binance_data(),
+                kraken=read_kraken_data(),
             )
 
-            candle1 = state.binance.history[-1]
-            candle2 = state.binance.history[-2]
-            candle3 = state.binance.history[-3]
+            # candle1 = state.kraken.history[-1]
+            # candle2 = state.kraken.history[-2]
+            # candle3 = state.kraken.history[-3]
 
-            # positive if the price went up
-            diff1 = candle1.close - candle1.open
-            diff2 = candle2.close - candle2.open
-            diff3 = candle3.close - candle3.open
+            # # positive if the price went up
+            # diff1 = candle1.close - candle1.open
+            # diff2 = candle2.close - candle2.open
+            # diff3 = candle3.close - candle3.open
 
-            sumdiffs = sum([diff1, diff2, diff3])
-            logger.info("%s, diffs %s", str(sumdiffs), str([diff1, diff2, diff3]))
+            # sumdiffs = sum([diff1, diff2, diff3])
+            # logger.info(
+            #     "%s, diffs %s, price delta: %s",
+            #     str(sumdiffs),
+            #     str([diff1, diff2, diff3]),
+            #     state.kraken.live_price - state.kraken.window_start_price,
+            # )
 
         except Exception:
             return state

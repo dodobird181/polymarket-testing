@@ -10,42 +10,40 @@ from market_info import current_window_start
 
 logger = getLogger(__name__)
 
-BINANCE_BASE = "https://api.binance.com/api/v3"
-
-
-def fetch_price_at(ts: int) -> float:
-    resp = requests.get(
-        f"{BINANCE_BASE}/klines",
-        params={
-            "symbol": "BTCUSDT",
-            "interval": "5m",
-            "startTime": ts * 1000,  # Binance uses milliseconds
-            "limit": 1,
-        },
-        timeout=5,
-    )
-    resp.raise_for_status()
-    return float(resp.json()[0][1])  # index 1 = open price
+KRAKEN_BASE = "https://api.kraken.com/0/public"
+KRAKEN_PAIR = "XBTUSD"
+KRAKEN_RESULT_KEY = "XXBTZUSD"
 
 
 def fetch_live_price() -> float:
-    resp = requests.get(f"{BINANCE_BASE}/ticker/price", params={"symbol": "BTCUSDT"}, timeout=5)
+    resp = requests.get(f"{KRAKEN_BASE}/Ticker", params={"pair": KRAKEN_PAIR}, timeout=5)
     resp.raise_for_status()
-    return float(resp.json()["price"])
+    return float(resp.json()["result"][KRAKEN_RESULT_KEY]["c"][0])
+
+
+def fetch_price_at(ts: int) -> float:
+    """Returns the open price of the 5-min candle starting at ts (seconds)."""
+    resp = requests.get(
+        f"{KRAKEN_BASE}/OHLC",
+        params={"pair": KRAKEN_PAIR, "interval": 5, "since": ts - 1},
+        timeout=5,
+    )
+    resp.raise_for_status()
+    candles = resp.json()["result"][KRAKEN_RESULT_KEY]
+    return float(candles[0][1])  # open price of first candle
 
 
 def fetch_history() -> list:
-    """
-    Fetch 5-min BTC history over the course of 24 hours.
-    """
+    """Fetch 5-min BTC history over the course of 24 hours (288 completed candles)."""
     resp = requests.get(
-        f"{BINANCE_BASE}/klines",
-        params={"symbol": "BTCUSDT", "interval": "5m", "limit": 288},
+        f"{KRAKEN_BASE}/OHLC",
+        params={"pair": KRAKEN_PAIR, "interval": 5},
         timeout=10,
     )
     resp.raise_for_status()
-    # omit the last candle because binance include the current 5-minute period (not closed yet)
-    return resp.json()[:-1]
+    candles = resp.json()["result"][KRAKEN_RESULT_KEY]
+    # Kraken includes the current forming candle as the last entry — exclude it
+    return candles[-289:-1]
 
 
 if __name__ == "__main__":
@@ -61,13 +59,13 @@ if __name__ == "__main__":
             if start_ts != last_window_ts:
                 last_window_ts = start_ts
                 history = fetch_history()
-                r.set("binance:history", json.dumps(history))
+                r.set("kraken:history", json.dumps(history))
                 window_start_price = fetch_price_at(start_ts)
                 logger.info("New window — start price: %.2f", window_start_price)
 
             live_price = fetch_live_price()
             r.set(
-                "binance:live",
+                "kraken:live",
                 json.dumps(
                     {
                         "live_price": live_price,
@@ -79,6 +77,6 @@ if __name__ == "__main__":
             logger.debug("BTC live price: %.2f", live_price)
 
         except Exception as e:
-            logger.error("Binance fetcher error: %s", e)
+            logger.error("Kraken fetcher error: %s", e)
 
         sleep(1)
