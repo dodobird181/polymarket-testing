@@ -30,12 +30,12 @@ if __name__ == "__main__":
         logger.debug("Seconds: %s", window_seconds)
         if window_seconds == 0 and ready == True:
             ready = False
-            filepaths = [f.name for f in Path(LOG_DIRNAME).iterdir()]
-            logger.debug("Plot watcher found %s to plot.", filepaths)
-            for filepath in filepaths:
+            logfiles = [f for f in Path(LOG_DIRNAME).iterdir() if f.suffix == ".jsonl"]
+            logger.debug("Plot watcher found %s to plot.", logfiles)
+            for logfile in logfiles:
                 plot(
-                    logfile=str(Path(LOG_DIRNAME, filepath)),
-                    savefile="strategy_plots/{filename}.png".format(filename=filepath.split(".")[0]),
+                    logfile=str(logfile),
+                    savefile=f"strategy_plots/{logfile.stem}.png",
                     show=False,
                 )
         if window_seconds == 280:
