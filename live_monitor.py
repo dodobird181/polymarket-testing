@@ -119,9 +119,12 @@ class LiveMarketState:
     trades: list[Trade] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return asdict(self) | {
+        d = asdict(self) | {
             "trades": [asdict(t) | {"side": t.side.value, "outcome": t.outcome.value} for t in self.trades]
         }
+        # exclude kraken BTC price information when logging the current market session
+        d.pop("kraken")
+        return d
 
 
 def read_kraken_data() -> LiveMarketState.KrakenData | None:
@@ -320,22 +323,21 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 kraken=read_kraken_data(),
             )
 
-            # candle1 = state.kraken.history[-1]
-            # candle2 = state.kraken.history[-2]
-            # candle3 = state.kraken.history[-3]
+            candle1 = state.kraken.history[-1]
+            candle2 = state.kraken.history[-2]
+            candle3 = state.kraken.history[-3]
 
-            # # positive if the price went up
-            # diff1 = candle1.close - candle1.open
-            # diff2 = candle2.close - candle2.open
-            # diff3 = candle3.close - candle3.open
+            # positive if the price went up
+            diff1 = candle1.close - candle1.open
+            diff2 = candle2.close - candle2.open
+            diff3 = candle3.close - candle3.open
 
-            # sumdiffs = sum([diff1, diff2, diff3])
-            # logger.info(
-            #     "%s, diffs %s, price delta: %s",
-            #     str(sumdiffs),
-            #     str([diff1, diff2, diff3]),
-            #     state.kraken.live_price - state.kraken.window_start_price,
-            # )
+            sumdiffs = sum([diff1, diff2, diff3])
+            logger.info(
+                "%s, diffs %s",
+                str(sumdiffs),
+                str([diff1, diff2, diff3]),
+            )
 
         except Exception:
             return state

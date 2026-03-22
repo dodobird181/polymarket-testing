@@ -57,10 +57,10 @@ if __name__ == "__main__":
         try:
             start_ts = current_window_start()
             if start_ts != last_window_ts:
-                last_window_ts = start_ts
                 history = fetch_history()
                 r.set("kraken:history", json.dumps(history))
                 window_start_price = fetch_price_at(start_ts)
+                last_window_ts = start_ts  # only update after success
                 logger.info("New window — start price: %.2f", window_start_price)
 
             live_price = fetch_live_price()
