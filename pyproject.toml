@@ -1,5 +1,6 @@
 [tool.poetry]
 package-mode = false
+python = "^3.11"
 
 
 [tool.poetry.group.dev.dependencies]
