@@ -25,6 +25,7 @@ ALWAYS_PRESENT = {
         "--server.baseUrlPath",
         "polymarket",
     ],
+    "binance_fetcher": ["poetry", "run", "python", "binance_fetcher.py"],
 }
 
 env = {**os.environ, "PYTHONUNBUFFERED": "1"}
