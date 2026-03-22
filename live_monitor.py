@@ -311,50 +311,53 @@ if __name__ == "__main__":
     flush = []
 
     while True:
+        try:
+            start_ts = current_window_start()
+            slug = current_window_slug(start_ts)
+            if STRATEGY_FILE:
+                STRATEGY = load_strategy_from_file(STRATEGY_FILE)
 
-        start_ts = current_window_start()
-        slug = current_window_slug(start_ts)
-        if STRATEGY_FILE:
-            STRATEGY = load_strategy_from_file(STRATEGY_FILE)
+            if slug not in unresolved_markets:
 
-        if slug not in unresolved_markets:
+                logger.info(
+                    "Starting poll %s",
+                    dumps(
+                        {
+                            "market": slug,
+                            "start_EST": to_EST(start_ts),
+                            "strategy": STRATEGY.run.__name__,
+                            "logfile": LOG_FILE.name,
+                        },
+                        indent=2,
+                    ),
+                )
 
-            logger.info(
-                "Starting poll %s",
-                dumps(
-                    {
-                        "market": slug,
-                        "start_EST": to_EST(start_ts),
-                        "strategy": STRATEGY.run.__name__,
-                        "logfile": LOG_FILE.name,
-                    },
-                    indent=2,
-                ),
-            )
+                state = poll_current_market(strategy=STRATEGY)
 
-            state = poll_current_market(strategy=STRATEGY)
+                # see if any of the previous markets have been resolved and log
+                for old_slug in unresolved_markets:
+                    old_state: LiveMarketState = unresolved_markets[old_slug]
+                    outcome = get_market_outcome_from_slug(old_state.slug)
+                    if outcome == Btc5MinMarketOutcome.UNRESOLVED:
+                        pass
+                    else:
+                        log_market_outcome(old_state, outcome)
+                        flush.append(old_slug)
+                for resolved_slug in flush:
+                    if resolved_slug in unresolved_markets:
+                        unresolved_markets.pop(resolved_slug)
 
-            # see if any of the previous markets have been resolved and log
-            for old_slug in unresolved_markets:
-                old_state: LiveMarketState = unresolved_markets[old_slug]
-                outcome = get_market_outcome_from_slug(old_state.slug)
-                if outcome == Btc5MinMarketOutcome.UNRESOLVED:
-                    pass
-                else:
-                    log_market_outcome(old_state, outcome)
-                    flush.append(old_slug)
-            for resolved_slug in flush:
-                if resolved_slug in unresolved_markets:
-                    unresolved_markets.pop(resolved_slug)
+                if state.slug not in unresolved_markets:
+                    # stop from adding more market results if they already exist in the unresolved_markets
+                    # dictionary. this can happen near the edges of when a market is resolved.
+                    unresolved_markets[state.slug] = state
+            else:
+                logger.debug(f"Strategy exited early for market {slug}. Waiting for next market to open...")
 
-            if state.slug not in unresolved_markets:
-                # stop from adding more market results if they already exist in the unresolved_markets
-                # dictionary. this can happen near the edges of when a market is resolved.
-                unresolved_markets[state.slug] = state
-        else:
-            logger.debug(f"Strategy exited early for market {slug}. Waiting for next market to open...")
-
-        # just adding a little buffer here for checking when the new market is open
-        # it shoudn't matter for most strategies to get in 5 seconds after market open...
-        logger.debug(f"Unresolved markets: {[x for x in unresolved_markets.keys()]}.")
-        sleep(5)
+            # just adding a little buffer here for checking when the new market is open
+            # it shoudn't matter for most strategies to get in 5 seconds after market open...
+            logger.debug(f"Unresolved markets: {[x for x in unresolved_markets.keys()]}.")
+            sleep(5)
+        except Exception as e:
+            logger.error("Something went wrong while trading: %s", STRATEGY.run.__name__, exc_info=e)
+            sleep(5)
