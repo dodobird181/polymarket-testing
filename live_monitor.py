@@ -204,6 +204,18 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
             return state
 
         strategy_result = strategy.run(state)
+        total_trades = [*state.trades]
+        if strategy_result.trade is not None:
+            new_trade = strategy_result.trade
+            total_trades.append(new_trade)
+            logger.info(
+                "Strategy '%s' executed trade (%s $%s of %s at %s).",
+                strategy.run.__name__,
+                str(new_trade.side.name).upper(),
+                str(new_trade.amount),
+                str(new_trade.outcome.name).upper(),
+                str(new_trade.price),
+            )
         try:
             state = LiveMarketState(
                 slug=slug,
@@ -228,7 +240,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 ),
                 clobs=state.clobs,
                 # append new trade to list if one was signaled
-                trades=state.trades + ([strategy_result.trade] if strategy_result.trade is not None else []),
+                trades=total_trades,
             )
         except Exception:
             return state
@@ -243,7 +255,7 @@ def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) ->
     entry = {"state": state.to_dict(), "outcome": outcome.value}
     with LOG_FILE.open("a") as f:
         f.write(dumps(entry) + "\n")
-    logger.info(dumps(entry, indent=2))
+    # logger.info(dumps(entry, indent=2))
 
 
 def load_strategy_from_file(path: str) -> Strategy:
@@ -319,18 +331,7 @@ if __name__ == "__main__":
 
             if slug not in unresolved_markets:
 
-                logger.info(
-                    "Starting poll %s",
-                    dumps(
-                        {
-                            "market": slug,
-                            "start_EST": to_EST(start_ts),
-                            "strategy": STRATEGY.run.__name__,
-                            "logfile": LOG_FILE.name,
-                        },
-                        indent=2,
-                    ),
-                )
+                logger.info("Starting poll for market %s.", slug)
 
                 state = poll_current_market(strategy=STRATEGY)
 

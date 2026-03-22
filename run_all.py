@@ -1,5 +1,7 @@
 import os
 import subprocess
+import sys
+import threading
 from pathlib import Path
 from time import sleep
 
@@ -19,9 +21,17 @@ env = {**os.environ, "PYTHONUNBUFFERED": "1"}
 running: dict[str, subprocess.Popen] = {}
 
 
+def _pipe_reader(name: str, stream):
+    for line in stream:
+        sys.stdout.write(f"[{name}] {line}")
+        sys.stdout.flush()
+
+
 def start(name: str, cmd: list[str]):
-    running[name] = subprocess.Popen(cmd, env=env)
-    logger.info("Started %s (pid=%d)", name, running[name].pid)
+    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    running[name] = proc
+    threading.Thread(target=_pipe_reader, args=(name, proc.stdout), daemon=True).start()
+    logger.info("Started %s (pid=%d)", name, proc.pid)
 
 
 def strategy_cmd(name: str) -> list[str]:
