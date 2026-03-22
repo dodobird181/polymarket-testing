@@ -209,8 +209,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
             new_trade = strategy_result.trade
             total_trades.append(new_trade)
             logger.info(
-                "Strategy '%s' executed trade (%s $%s of %s at %s).",
-                strategy.run.__name__,
+                "(%s $%s of %s at %s).",
                 str(new_trade.side.name).upper(),
                 str(new_trade.amount),
                 str(new_trade.outcome.name).upper(),
