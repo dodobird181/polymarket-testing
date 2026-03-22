@@ -323,21 +323,21 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 kraken=read_kraken_data(),
             )
 
-            candle1 = state.kraken.history[-1]
-            candle2 = state.kraken.history[-2]
-            candle3 = state.kraken.history[-3]
+            # candle1 = state.kraken.history[-1]
+            # candle2 = state.kraken.history[-2]
+            # candle3 = state.kraken.history[-3]
 
-            # positive if the price went up
-            diff1 = candle1.close - candle1.open
-            diff2 = candle2.close - candle2.open
-            diff3 = candle3.close - candle3.open
+            # # positive if the price went up
+            # diff1 = candle1.close - candle1.open
+            # diff2 = candle2.close - candle2.open
+            # diff3 = candle3.close - candle3.open
 
-            sumdiffs = sum([diff1, diff2, diff3])
-            logger.info(
-                "%s, diffs %s",
-                str(sumdiffs),
-                str([diff1, diff2, diff3]),
-            )
+            # sumdiffs = sum([diff1, diff2, diff3])
+            # logger.info(
+            #     "%s, diffs %s",
+            #     str(sumdiffs),
+            #     str([diff1, diff2, diff3]),
+            # )
 
         except Exception:
             return state
