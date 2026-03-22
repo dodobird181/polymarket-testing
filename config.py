@@ -13,6 +13,7 @@ class Config:
         wallet_address: str
 
     polymarket: Polymarket
+    redis_url: str
 
 
 def load_config() -> Config:
@@ -21,5 +22,6 @@ def load_config() -> Config:
         polymarket=Config.Polymarket(
             private_key=environ["POLYMARKET_PRIVATE_KEY"],
             wallet_address=environ["POLYMARKET_USER_WALLET_ADDRESS"],
-        )
+        ),
+        redis_url=environ["REDIS_URL"],
     )
