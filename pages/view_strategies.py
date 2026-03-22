@@ -60,10 +60,11 @@ else:
         with open(path, "r") as fh:
             content = fh.read()
         st.subheader(f"Viewing: {selected_file}")
-        st.code(content, language="python")
 
         plot_path = Path("strategy_plots") / selected_file.replace(".py", ".png")
         if plot_path.exists():
-            st.image(str(plot_path))
+            st.image(str(plot_path), width=1000)
         else:
             st.info("Plot data not available yet. Please enable the strategy and come back in 10 minutes...")
+
+        st.code(content, language="python")

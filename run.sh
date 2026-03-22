@@ -1,6 +1,3 @@
 #!/usr/bin/bash
 
-while true; do
-    honcho start
-    sleep 1
-done
+poetry run python procfile_regenerator.py
