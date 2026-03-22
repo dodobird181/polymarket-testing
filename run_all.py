@@ -35,26 +35,35 @@ def strategy_cmd(name: str) -> list[str]:
     ]
 
 
-def start_new_strategies():
+def stop_strategy(name: str):
+    proc = running.pop(name)
+    proc.terminate()
+    logger.info("Stopped %s (pid=%d) because it was disabled.", name, proc.pid)
+
+
+def sync_strategies():
     enabled = {f.stem for f in ENABLED_DIR.glob("*.enabled")}
+    strategy_names = running.keys() - ALWAYS_PRESENT.keys()
     for name in sorted(enabled - running.keys()):
         start(name, strategy_cmd(name))
+    for name in sorted(strategy_names - enabled):
+        stop_strategy(name)
 
 
 if __name__ == "__main__":
+
     for name, cmd in ALWAYS_PRESENT.items():
         start(name, cmd)
 
-    start_new_strategies()
+    sync_strategies()
 
     ready = True
     while True:
         start_ts = current_window_start()
         window_seconds = elapsed(start_ts)
-        logger.debug("Seconds: %s", window_seconds)
         if window_seconds == 0 and ready:
             ready = False
-            start_new_strategies()
+            sync_strategies()
         if window_seconds == 280:
             ready = True
         sleep(0.5)

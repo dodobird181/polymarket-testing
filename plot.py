@@ -1,7 +1,6 @@
 import json
 from datetime import datetime
 from sys import argv
-from time import sleep
 
 import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
@@ -178,6 +177,7 @@ def plot(logfile: str, savefile: str, show=False):
     plt.savefig(savefile, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     if show == True:
         plt.show()
+    plt.close()
 
 
 if __name__ == "__main__":

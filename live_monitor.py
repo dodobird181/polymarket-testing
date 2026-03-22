@@ -137,70 +137,6 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
     return Strategy.Result(trade, {"window": window})
 
 
-def run_sam_strategy_with_stop_loss(state: LiveMarketState) -> Strategy.Result:
-
-    def get_window():
-        if state.elapsed_seconds < 180:
-            return "before"
-        elif state.elapsed_seconds >= 180 and state.elapsed_seconds < 270:
-            return "can_trigger"
-        else:
-            return "after"
-
-    def in_buy_threshold(price: float, min=0.9, max=0.95) -> bool:
-        return price >= min and price <= max
-
-    def get_buy_amount():
-        return 10
-
-    trade = None
-    window = get_window()
-    amount = get_buy_amount()
-    if len(state.trades) == 0:
-        if window == "can_trigger":
-            if in_buy_threshold(state.price.up):
-                trade = Trade(
-                    outcome=Trade.Outcome.UP,
-                    clob=state.clobs.up,
-                    side=Trade.Side.BUY,
-                    amount=amount,
-                    price=state.price.up,
-                    dt=datetime.now().timestamp(),
-                )
-            elif in_buy_threshold(state.price.down):
-                trade = Trade(
-                    outcome=Trade.Outcome.DOWN,
-                    clob=state.clobs.down,
-                    side=Trade.Side.BUY,
-                    amount=amount,
-                    price=state.price.down,
-                    dt=datetime.now().timestamp(),
-                )
-    elif len(state.trades) == 1:
-        # protect downside losses by selling
-        buy_trade = state.trades[0]
-        if buy_trade.outcome == Trade.Outcome.UP and state.price.up <= 0.35:
-            trade = Trade(
-                outcome=Trade.Outcome.UP,
-                clob=state.clobs.up,
-                side=Trade.Side.SELL,
-                amount=amount,
-                price=state.price.up,
-                dt=datetime.now().timestamp(),
-            )
-        elif buy_trade.outcome == Trade.Outcome.DOWN and state.price.down <= 0.35:
-            trade = Trade(
-                outcome=Trade.Outcome.DOWN,
-                clob=state.clobs.down,
-                side=Trade.Side.SELL,
-                amount=amount,
-                price=state.price.down,
-                dt=datetime.now().timestamp(),
-            )
-
-    return Strategy.Result(trade, {"window": window})
-
-
 def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Result:
 
     def get_window():
@@ -311,16 +247,33 @@ def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) ->
 
 
 def load_strategy_from_file(path: str) -> Strategy:
-    import importlib.util
+    from RestrictedPython import compile_restricted, safe_builtins, safe_globals
 
-    spec = importlib.util.spec_from_file_location("user_strategy", path)
-    if spec is None or spec.loader is None:
-        raise ValueError(f"Could not load strategy file: {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore
-    if not hasattr(module, "run_strategy"):
+    source = Path(path).read_text()
+    try:
+        compiled = compile_restricted(source, filename=path, mode="exec")
+    except SyntaxError as e:
+        raise ValueError(f"Strategy has a syntax error: {e}")
+
+    def _no_import(*_):
+        raise ImportError("Imports are not allowed in strategies!")
+
+    restricted_globals = {
+        **safe_globals,
+        "__builtins__": {**safe_builtins, "__import__": _no_import},
+        "_getitem_": lambda obj, key: obj[key],
+        "datetime": datetime,
+        "LiveMarketState": LiveMarketState,
+        "Strategy": Strategy,
+        "Trade": Trade,
+    }
+
+    exec(compiled, restricted_globals)  # noqa: S102
+
+    if "run_strategy" not in restricted_globals:
         raise ValueError(f"{path} must define a function named 'run_strategy'.")
-    return Strategy(run=module.run_strategy)
+
+    return Strategy(run=restricted_globals["run_strategy"])  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
