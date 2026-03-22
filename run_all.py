@@ -14,7 +14,17 @@ ENABLED_DIR = Path(__file__).parent / "strategy_files" / "enabled"
 
 ALWAYS_PRESENT = {
     "plot_watcher": ["poetry", "run", "python", "plot_watcher.py", "strategy_logs"],
-    "streamlit_app": ["poetry", "run", "streamlit", "run", "app.py", "--server.headless", "true"],
+    "streamlit_app": [
+        "poetry",
+        "run",
+        "streamlit",
+        "run",
+        "app.py",
+        "--server.headless",
+        "true",
+        "--server.baseUrlPath",
+        "polymarket",
+    ],
 }
 
 env = {**os.environ, "PYTHONUNBUFFERED": "1"}
