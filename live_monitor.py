@@ -1,12 +1,13 @@
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-from json import dumps
+from json import dumps, loads
 from pathlib import Path
 from sys import argv
 from time import sleep
 from typing import Callable
 
+import redis
 from py_clob_client.clob_types import OrderType
 
 from clob_client import get_client
@@ -23,6 +24,18 @@ from market_info import (
 )
 
 logger = getLogger(__name__)
+
+_redis_client: redis.Redis | None = None  # type: ignore[type-arg]
+
+
+def _get_redis() -> "redis.Redis":  # type: ignore[type-arg]
+    global _redis_client
+    if _redis_client is None:
+        from config import load_config
+
+        config = load_config()
+        _redis_client = redis.Redis.from_url(config.redis_url, socket_connect_timeout=2, socket_timeout=2)
+    return _redis_client
 
 
 @dataclass
@@ -63,6 +76,41 @@ class LiveMarketState:
         up: float
         down: float
 
+    @dataclass
+    class BinanceData:
+        """
+        BTC price binance data.
+
+        NOTE:   This is not always 100% accurate because polymarket gets their price directly
+                from the blockchain. It is usually within about $5 USD from the polymarket price.
+
+        """
+
+        @dataclass
+        class Candle:
+            open_time: int  # ms
+            open: float
+            high: float
+            low: float
+            close: float
+            volume: float
+            close_time: int  # ms
+            quote_volume: float
+            trade_count: int
+            taker_buy_volume: float
+            taker_buy_quote_volume: float
+
+        # The live market price according to Binance. NOTE: Updated every second.
+        live_price: float
+
+        # The BTC price at the start of the market interval.
+        window_start_price: float
+
+        # History is a list of the past ~24 hours (287 5-minute intervals), in aescending order.
+        # I.e., history[-1] is the previous 5-min interval from the current market. history[-4]
+        # is 4 intervals ago.
+        history: list[Candle]
+
     slug: str
     start_ts: int
     start_EST: str
@@ -70,12 +118,46 @@ class LiveMarketState:
 
     price: EstimatedPrice
     clobs: Btc5MinClobs
+    binance: BinanceData | None
     trades: list[Trade] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self) | {
             "trades": [asdict(t) | {"side": t.side.value, "outcome": t.outcome.value} for t in self.trades]
         }
+
+
+def read_binance_data() -> LiveMarketState.BinanceData | None:
+    try:
+        r = _get_redis()
+        raw_live, raw_history = r.get("binance:live"), r.get("binance:history")
+        if raw_live is None or raw_history is None:
+            return None
+        data = loads(raw_live)  # type: ignore[arg-type]
+        Candle = LiveMarketState.BinanceData.Candle
+        return LiveMarketState.BinanceData(
+            live_price=data["live_price"],
+            window_start_price=data["window_start_price"],
+            history=[
+                Candle(
+                    open_time=k[0],
+                    open=float(k[1]),
+                    high=float(k[2]),
+                    low=float(k[3]),
+                    close=float(k[4]),
+                    volume=float(k[5]),
+                    close_time=k[6],
+                    quote_volume=float(k[7]),
+                    trade_count=k[8],
+                    taker_buy_volume=float(k[9]),
+                    taker_buy_quote_volume=float(k[10]),
+                )
+                for k in loads(raw_history)  # type: ignore[arg-type]
+            ],
+        )
+    except Exception as e:
+        logger.warning("Failed to load binance data.", exc_info=e)
+        return None
 
 
 @dataclass
@@ -195,6 +277,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
         elapsed_seconds=0,
         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
         clobs=clobs,
+        binance=read_binance_data(),
     )
 
     # start polling for price updates with out strategy
@@ -240,7 +323,21 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 clobs=state.clobs,
                 # append new trade to list if one was signaled
                 trades=total_trades,
+                binance=read_binance_data(),
             )
+
+            candle1 = state.binance.history[-1]
+            candle2 = state.binance.history[-2]
+            candle3 = state.binance.history[-3]
+
+            # positive if the price went up
+            diff1 = candle1.close - candle1.open
+            diff2 = candle2.close - candle2.open
+            diff3 = candle3.close - candle3.open
+
+            sumdiffs = sum([diff1, diff2, diff3])
+            logger.info("%s, diffs %s", str(sumdiffs), str([diff1, diff2, diff3]))
+
         except Exception:
             return state
         logger.debug(
