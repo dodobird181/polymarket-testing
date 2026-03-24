@@ -2,15 +2,13 @@ import os
 import subprocess
 import sys
 import threading
-from pathlib import Path
 from time import sleep
 
 from log_config import getLogger
 from market_info import current_window_start, elapsed
+from strategy_file_toggle import livetest_toggle
 
 logger = getLogger(__name__)
-
-ENABLED_DIR = Path(__file__).parent / "strategy_files" / "enabled"
 
 ALWAYS_PRESENT = {
     "plot_watcher": [
@@ -74,7 +72,7 @@ def stop_strategy(name: str):
 
 
 def sync_strategies():
-    enabled = {f.stem for f in ENABLED_DIR.glob("*.enabled")}
+    enabled = {f.stem for f in livetest_toggle.dir.glob("*")}
     strategy_names = running.keys() - ALWAYS_PRESENT.keys()
     for name in sorted(enabled - running.keys()):
         start(name, strategy_cmd(name))
