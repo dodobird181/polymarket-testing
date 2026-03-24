@@ -13,12 +13,12 @@ from py_clob_client.clob_types import OrderType
 from clob_client import get_client
 from log_config import getLogger
 from market_info import (
-    Btc5MinClobs,
+    Btc5MinMarketInfo,
     Btc5MinMarketOutcome,
     current_window_slug,
     current_window_start,
     elapsed,
-    get_current_market_clobs,
+    get_current_market_info,
     get_market_outcome_from_slug,
     to_EST,
 )
@@ -114,7 +114,7 @@ class LiveMarketState:
     elapsed_seconds: int
 
     price: EstimatedPrice
-    clobs: Btc5MinClobs
+    info: Btc5MinMarketInfo
     kraken: KrakenData | None
     trades: list[Trade] = field(default_factory=list)
 
@@ -197,7 +197,7 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
             if in_buy_threshold(state.price.up):
                 trade = Trade(
                     outcome=Trade.Outcome.UP,
-                    clob=state.clobs.up,
+                    clob=state.info.up_clob_id,
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.up,
@@ -206,7 +206,7 @@ def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
             elif in_buy_threshold(state.price.down):
                 trade = Trade(
                     outcome=Trade.Outcome.DOWN,
-                    clob=state.clobs.down,
+                    clob=state.info.down_clob_id,
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.down,
@@ -240,7 +240,7 @@ def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Re
             if in_buy_threshold(state.price.up):
                 trade = Trade(
                     outcome=Trade.Outcome.UP,
-                    clob=state.clobs.up,
+                    clob=state.info.up_clob_id,
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.up,
@@ -249,7 +249,7 @@ def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Re
             elif in_buy_threshold(state.price.down):
                 trade = Trade(
                     outcome=Trade.Outcome.DOWN,
-                    clob=state.clobs.down,
+                    clob=state.info.down_clob_id,
                     side=Trade.Side.BUY,
                     amount=amount,
                     price=state.price.down,
@@ -263,7 +263,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
 
     # initialize live monitor for the current 5-min market
     client = get_client()
-    clobs = get_current_market_clobs()
+    info = get_current_market_info()
     start_ts = current_window_start()
     startEST = to_EST(start_ts)
     slug = current_window_slug(start_ts)
@@ -273,7 +273,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
         start_EST=startEST,
         elapsed_seconds=0,
         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
-        clobs=clobs,
+        info=info,
         kraken=read_kraken_data(),
     )
 
@@ -305,19 +305,19 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 # re-fetch the live prices from Polymarket
                 price=LiveMarketState.EstimatedPrice(
                     up=client.calculate_market_price(
-                        token_id=clobs.up,
+                        token_id=info.up_clob_id,
                         side="BUY",
                         amount=10,
                         order_type=OrderType.FOK,  # type: ignore
                     ),
                     down=client.calculate_market_price(
-                        token_id=clobs.down,
+                        token_id=info.down_clob_id,
                         side="BUY",
                         amount=10,
                         order_type=OrderType.FOK,  # type: ignore
                     ),
                 ),
-                clobs=state.clobs,
+                info=state.info,
                 # append new trade to list if one was signaled
                 trades=total_trades,
                 kraken=read_kraken_data(),

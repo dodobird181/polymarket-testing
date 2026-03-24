@@ -10,9 +10,9 @@ from requests.exceptions import HTTPError
 
 
 @dataclass
-class Btc5MinClobs:
-    up: str
-    down: str
+class Btc5MinMarketInfo:
+    up_clob_id: str
+    down_clob_id: str
 
 
 class Btc5MinMarketOutcome(Enum):
@@ -68,7 +68,7 @@ def get_market_by_slug(slug: str) -> dict:
         raise MarketNotFound from e
 
 
-def get_current_market_clobs() -> Btc5MinClobs:
+def get_current_market_info() -> Btc5MinMarketInfo:
     """
     Get current BTC 5-min market clob token ids for the Up and Down directions.
     """
@@ -81,7 +81,7 @@ def get_current_market_clobs() -> Btc5MinClobs:
         raise AssertionError("Expected BTC Up/Down market response to contain exactly 2 outcomes!")
     tids = loads(market["markets"][0]["clobTokenIds"])
     market_clobs = dict(zip([x.lower() for x in outcomes], tids))
-    return Btc5MinClobs(up=market_clobs["up"], down=market_clobs["down"])
+    return Btc5MinMarketInfo(up_clob_id=market_clobs["up"], down_clob_id=market_clobs["down"])
 
 
 def get_market_outcome_from_slug(slug: str) -> Btc5MinMarketOutcome:
