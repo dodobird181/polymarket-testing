@@ -3,8 +3,8 @@ import os
 from RestrictedPython import compile_restricted
 from RestrictedPython.transformer import RestrictingNodeTransformer
 
-DATA_DIR = "strategy_files"
-os.makedirs(DATA_DIR, exist_ok=True)
+STRATEGY_FILES_DIR = "strategy_files"
+os.makedirs(STRATEGY_FILES_DIR, exist_ok=True)
 
 
 class StrategyPolicy(RestrictingNodeTransformer):

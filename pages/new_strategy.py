@@ -3,7 +3,7 @@ import os
 import streamlit as st
 from streamlit_monaco import st_monaco
 
-from strategy_editor_utils import DATA_DIR, validate_strategy
+from strategy_editor_utils import STRATEGY_FILES_DIR, validate_strategy
 
 st.set_page_config(layout="wide")
 st.title("Add strategy")
@@ -129,7 +129,7 @@ if st.button("Save"):
             st.error(f"Strategy rejected: {err}")
         else:
             full_name = f"{file_name}.py"
-            path = os.path.join(DATA_DIR, full_name)
+            path = os.path.join(STRATEGY_FILES_DIR, full_name)
             if os.path.exists(path):
                 st.error("File already exists ❌")
             else:

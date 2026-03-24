@@ -13,7 +13,13 @@ logger = getLogger(__name__)
 ENABLED_DIR = Path(__file__).parent / "strategy_files" / "enabled"
 
 ALWAYS_PRESENT = {
-    "plot_watcher": ["poetry", "run", "python", "plot_watcher.py", "strategy_logs"],
+    "plot_watcher": [
+        "poetry",
+        "run",
+        "python",
+        "plot_watcher.py",
+        "strategy_logs",
+    ],
     "streamlit_app": [
         "poetry",
         "run",
@@ -25,7 +31,12 @@ ALWAYS_PRESENT = {
         "--server.baseUrlPath",
         "polymarket",
     ],
-    "kraken_fetcher": ["poetry", "run", "python", "kraken_fetcher.py"],
+    "kraken_fetcher": [
+        "poetry",
+        "run",
+        "python",
+        "kraken_fetcher.py",
+    ],
 }
 
 env = {**os.environ, "PYTHONUNBUFFERED": "1"}

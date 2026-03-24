@@ -7,7 +7,8 @@ from market_info import current_window_start, elapsed
 from plot import plot
 
 """
-Regenerates the plots in "strategy_plots/" every 5 minutes.
+Regenerates the plots in "strategy_plots/" every 5 minutes (at the start of
+a BTC 5-min market window).
 """
 
 logger = getLogger(__name__)
