@@ -22,6 +22,7 @@ from market_info import (
     get_market_outcome_from_slug,
     to_EST,
 )
+from strategy_file_toggle import trading_toggle
 
 logger = getLogger(__name__)
 
@@ -259,7 +260,7 @@ def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Re
     return Strategy.Result(trade, {"window": window})
 
 
-def poll_current_market(strategy: Strategy) -> LiveMarketState:
+def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMarketState:
 
     # initialize live monitor for the current 5-min market
     client = get_client()
@@ -288,13 +289,46 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
         if strategy_result.trade is not None:
             new_trade = strategy_result.trade
             total_trades.append(new_trade)
-            logger.info(
-                "(%s $%s of %s at %s).",
-                str(new_trade.side.name).upper(),
-                str(new_trade.amount),
-                str(new_trade.outcome.name).upper(),
-                str(new_trade.price),
-            )
+            if strategy_file is not None and trading_toggle.is_enabled(strategy_file):
+                # only execute a trade if trading is enabled for the given strategy file. trading is only
+                # available for strategy files.
+                # order = client.create_market_order(
+                #     MarketOrderArgs(
+                #         token_id=new_trade.clob,
+                #         # hard-coded at the minimum bet i can do for now...
+                #         amount=1,
+                #         side=new_trade.side.name.upper(),
+                #         # slippage ceiling — won't pay more than this (set super high because my strategies
+                #         # operate near 1.0 dollar markets. This should really be specified in the strategy file somehow.)
+                #         price=0.99,
+                #     )
+                # )
+                # response = client.post_order(order, OrderType.FOK)  # type: ignore
+                # if "status" in response and "status" == "matched":
+                #     logger.info(
+                #         "LIVE TRADING: (%s $%s of %s at %s).",
+                #         str(new_trade.side.name).upper(),
+                #         str(new_trade.amount),
+                #         str(new_trade.outcome.name).upper(),
+                #         str(new_trade.price),
+                #     )
+                # else:
+                #     logger.info(
+                #         "LIVE TRADING: Tried to (%s $%s of %s at %s) but order was cancelled (probably not enough liquidity).",
+                #         str(new_trade.side.name).upper(),
+                #         str(new_trade.amount),
+                #         str(new_trade.outcome.name).upper(),
+                #         str(new_trade.price),
+                #     )
+                ...
+            else:
+                logger.info(
+                    "(%s $%s of %s at %s).",
+                    str(new_trade.side.name).upper(),
+                    str(new_trade.amount),
+                    str(new_trade.outcome.name).upper(),
+                    str(new_trade.price),
+                )
         try:
             state = LiveMarketState(
                 slug=slug,
@@ -322,6 +356,8 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 trades=total_trades,
                 kraken=read_kraken_data(),
             )
+
+            logger.info(state.kraken.live_price)
 
         except Exception:
             return state
@@ -415,7 +451,7 @@ if __name__ == "__main__":
 
                 logger.info("Starting poll for market %s.", slug)
 
-                state = poll_current_market(strategy=STRATEGY)
+                state = poll_current_market(strategy=STRATEGY, strategy_file=STRATEGY_FILE)
 
                 # see if any of the previous markets have been resolved and log
                 for old_slug in unresolved_markets:

@@ -11,8 +11,18 @@ from requests.exceptions import HTTPError
 
 @dataclass
 class Btc5MinMarketInfo:
+
+    # the Polymarket API "clob" token ids (used for making orders)
     up_clob_id: str
     down_clob_id: str
+
+    # the minimum price increment, e.g., "0.01"
+    tick_size: str
+
+    # orders in markets that have more than one possible outcome need this flag set to `True` in order
+    # for the order to go through. this should always be `False` for BTC 5-min markets. but i'm gonna pull
+    # the value directly from the API to be sure. See: https://docs.polymarket.com/trading/orders/overview#negative-risk.
+    neg_risk: bool
 
 
 class Btc5MinMarketOutcome(Enum):
@@ -81,7 +91,12 @@ def get_current_market_info() -> Btc5MinMarketInfo:
         raise AssertionError("Expected BTC Up/Down market response to contain exactly 2 outcomes!")
     tids = loads(market["markets"][0]["clobTokenIds"])
     market_clobs = dict(zip([x.lower() for x in outcomes], tids))
-    return Btc5MinMarketInfo(up_clob_id=market_clobs["up"], down_clob_id=market_clobs["down"])
+    return Btc5MinMarketInfo(
+        up_clob_id=market_clobs["up"],
+        down_clob_id=market_clobs["down"],
+        tick_size=str(market["markets"][0]["orderPriceMinTickSize"]),
+        neg_risk=market["negRisk"],
+    )
 
 
 def get_market_outcome_from_slug(slug: str) -> Btc5MinMarketOutcome:
