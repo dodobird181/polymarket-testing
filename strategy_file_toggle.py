@@ -32,11 +32,11 @@ class StrategyFileToggle:
         path = self._path(filename)
         if path.exists():
             path.unlink()
-            logger.info("Enabled '%s' behaviour for strategy '%s'.", self.dirname, filename)
+            logger.info("Disabled '%s' behaviour for strategy '%s'.", self.dirname, filename)
             return False
         else:
             path.touch()
-            logger.info("Disabled '%s' behaviour for strategy '%s'.", self.dirname, filename)
+            logger.info("Enabled '%s' behaviour for strategy '%s'.", self.dirname, filename)
             return True
 
 
