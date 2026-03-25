@@ -2,13 +2,13 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from json import dumps, loads
+from os import mkdir
 from pathlib import Path
 from sys import argv
 from time import sleep
 from typing import Callable
 
-import redis
-from py_clob_client.clob_types import OrderType
+from py_clob_client.clob_types import MarketOrderArgs, OrderType
 
 from clob_client import get_client
 from log_config import getLogger
@@ -22,21 +22,10 @@ from market_info import (
     get_market_outcome_from_slug,
     to_EST,
 )
+from redis_config import get_redis
 from strategy_file_toggle import trading_toggle
 
 logger = getLogger(__name__)
-
-_redis_client: redis.Redis | None = None  # type: ignore[type-arg]
-
-
-def _get_redis() -> "redis.Redis":  # type: ignore[type-arg]
-    global _redis_client
-    if _redis_client is None:
-        from config import load_config
-
-        config = load_config()
-        _redis_client = redis.Redis.from_url(config.redis_url, socket_connect_timeout=2, socket_timeout=2)
-    return _redis_client
 
 
 @dataclass
@@ -130,8 +119,8 @@ class LiveMarketState:
 
 def read_kraken_data() -> LiveMarketState.KrakenData | None:
     try:
-        r = _get_redis()
-        raw_live, raw_history = r.get("kraken:live"), r.get("kraken:history")
+        redis = get_redis()
+        raw_live, raw_history = redis.get("kraken:live"), redis.get("kraken:history")
         if raw_live is None or raw_history is None:
             return None
         data = loads(raw_live)  # type: ignore[arg-type]
@@ -304,23 +293,33 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
                 #     )
                 # )
                 # response = client.post_order(order, OrderType.FOK)  # type: ignore
-                # if "status" in response and "status" == "matched":
-                #     logger.info(
-                #         "LIVE TRADING: (%s $%s of %s at %s).",
-                #         str(new_trade.side.name).upper(),
-                #         str(new_trade.amount),
-                #         str(new_trade.outcome.name).upper(),
-                #         str(new_trade.price),
-                #     )
-                # else:
-                #     logger.info(
-                #         "LIVE TRADING: Tried to (%s $%s of %s at %s) but order was cancelled (probably not enough liquidity).",
-                #         str(new_trade.side.name).upper(),
-                #         str(new_trade.amount),
-                #         str(new_trade.outcome.name).upper(),
-                #         str(new_trade.price),
-                #     )
-                ...
+                response = {"fake": "order response!"}
+                if "status" in response and "status" == "matched":
+                    logger.info(
+                        "LIVE TRADING: (%s $%s of %s at %s).",
+                        str(new_trade.side.name).upper(),
+                        str(new_trade.amount),
+                        str(new_trade.outcome.name).upper(),
+                        str(new_trade.price),
+                    )
+                else:
+                    logger.info(
+                        "LIVE TRADING: Tried to (%s $%s of %s at %s) but order was cancelled (probably not enough liquidity).",
+                        str(new_trade.side.name).upper(),
+                        str(new_trade.amount),
+                        str(new_trade.outcome.name).upper(),
+                        str(new_trade.price),
+                    )
+
+                if not isinstance(response, dict):
+                    # make sure response is a dictionary
+                    raise ValueError("Got bad response from clob client after posting a market order: %s", response)
+
+                Path("trading_logs").mkdir(exist_ok=True)
+                strategy_name = strategy_file.split(".py")[0]
+                with open(f"trading_logs/{strategy_name}.jsonl", "w") as file:
+                    # log the trade!
+                    file.write(dumps(response | {"slug": slug}))
             else:
                 logger.info(
                     "(%s $%s of %s at %s).",
@@ -356,8 +355,6 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
                 trades=total_trades,
                 kraken=read_kraken_data(),
             )
-
-            logger.info(state.kraken.live_price)
 
         except Exception:
             return state
@@ -479,4 +476,5 @@ if __name__ == "__main__":
             sleep(5)
         except Exception as e:
             logger.error("Something went wrong while trading: %s", STRATEGY.run.__name__, exc_info=e)
+            sleep(5)
             sleep(5)
