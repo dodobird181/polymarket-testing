@@ -1,6 +1,7 @@
 import argparse
 import json
 from datetime import datetime
+from pathlib import Path
 
 import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
@@ -193,17 +194,19 @@ def plot(
             fontsize=14,
         )
 
-    logger.info("Saving plot: '%s'.", savefile)
+    Path(savefile).parent.mkdir(exist_ok=True, parents=True)
     plt.savefig(savefile, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     if show == True:
         plt.show()
     plt.close()
+    logger.info("Saved plot: '%s'.", savefile)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot Polymarket trading results from a JSONL log file.")
     parser.add_argument("logfile", help="The JSONL logfile to graph.")
-    parser.add_argument("--show", action="store_true", help="Show the plot interactively instead of just saving.")
+    parser.add_argument("savefile", help="The PNG filepath to save to.")
+    parser.add_argument("--show", action="store_true", help="Show the plot interactively after saving.")
     parser.add_argument("--cash", type=float, default=None, help="Initial bankroll in dollars for simulation mode.")
     parser.add_argument(
         "--pct", type=float, default=None, help="Percent of bankroll to wager per bet (e.g. 5 for 5%%)."
@@ -213,10 +216,9 @@ if __name__ == "__main__":
     if (args.cash is None) != (args.pct is None):
         parser.error("--cash and --pct must be provided together.")
 
-    print("{filename}.png".format(filename=args.logfile.split(".")[0]))
     plot(
         logfile=args.logfile,
-        savefile="{filename}.png".format(filename=args.logfile.split(".")[0]),
+        savefile=args.savefile,
         show=args.show,
         cash=args.cash,
         pct=args.pct,
