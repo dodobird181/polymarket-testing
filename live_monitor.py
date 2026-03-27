@@ -10,7 +10,9 @@ from typing import Callable
 from py_clob_client.clob_types import MarketOrderArgs, OrderType
 
 from clob_client import get_client
-from market_info import (
+from src.config import StrategyToggleConfigProvider, getLogger
+from src.utils import get_redis
+from src.utils.market_info import (
     Btc5MinMarketInfo,
     Btc5MinMarketOutcome,
     current_window_slug,
@@ -20,8 +22,6 @@ from market_info import (
     get_market_outcome_from_slug,
     to_EST,
 )
-from src.config import StrategyToggleConfigProvider, getLogger
-from src.utils import get_redis
 
 logger = getLogger(__name__)
 

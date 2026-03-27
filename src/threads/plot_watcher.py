@@ -1,26 +1,20 @@
 from pathlib import Path
-from sys import argv
 from time import sleep
 
-from market_info import current_window_start, elapsed
-from plot import plot
-from src.config import getLogger
+from src.config import getLogger, load_config
+from src.utils.market_info import current_window_start, elapsed
+from src.utils.plot_logfile import plot_logfile
 
 """
-Regenerates the plots in "strategy_plots/" every 5 minutes (at the start of
-a BTC 5-min market window).
+Regenerates plot PNG images from strategy logfiles every 5 mins, at the start of the BTC 5-min market window.
 """
 
 logger = getLogger(__name__)
+config = load_config()
 
 if __name__ == "__main__":
 
-    if len(argv) == 2:
-        LOG_DIRNAME = argv[1]
-    else:
-        raise ValueError("Usage: python plot_watcher.py <log_dirname>")
-
-    logger.info("Watching '%s' for logfiles to plot...", LOG_DIRNAME)
+    logger.info("Watching '%s' for logfiles to plot...", config.strategy.log_dir)
 
     # additional variable to make sure we only re-calculate the plots ONCE ever 5 mins,
     # even though we poll more than once per second.
@@ -31,10 +25,10 @@ if __name__ == "__main__":
         logger.debug("Seconds: %s", window_seconds)
         if window_seconds == 0 and ready == True:
             ready = False
-            logfiles = [f for f in Path(LOG_DIRNAME).iterdir() if f.suffix == ".jsonl"]
+            logfiles = [f for f in Path(config.strategy.log_dir).iterdir() if f.suffix == ".jsonl"]
             logger.debug("Plot watcher found %s to plot.", logfiles)
             for logfile in logfiles:
-                plot(
+                plot_logfile(
                     logfile=str(logfile),
                     savefile=f"strategy_plots/{logfile.stem}.png",
                     show=False,

@@ -34,13 +34,11 @@ class Btc5MinMarketOutcome(Enum):
 class MarketNotFound(Exception): ...
 
 
-WINDOW_SECS = 300  # 5-min window
-
-
 def current_window_start() -> int:
     """
     Unix timestamp of the current 5-min window's start.
     """
+    WINDOW_SECS = 300  # 5-min window
     return (int(time()) // WINDOW_SECS) * WINDOW_SECS
 
 

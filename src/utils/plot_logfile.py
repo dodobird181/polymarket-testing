@@ -12,7 +12,7 @@ from src.config import getLogger
 logger = getLogger(__name__)
 
 
-def plot(
+def plot_logfile(
     logfile: str,
     savefile: str,
     show=False,
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     if (args.cash is None) != (args.pct is None):
         parser.error("--cash and --pct must be provided together.")
 
-    plot(
+    plot_logfile(
         logfile=args.logfile,
         savefile=args.savefile,
         show=args.show,

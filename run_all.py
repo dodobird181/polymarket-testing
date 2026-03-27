@@ -4,8 +4,8 @@ import sys
 import threading
 from time import sleep
 
-from market_info import current_window_start, elapsed
 from src.config import StrategyToggleConfigProvider, getLogger, load_config
+from src.utils.market_info import current_window_start, elapsed
 
 logger = getLogger(__name__)
 config = load_config()
