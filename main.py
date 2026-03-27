@@ -149,10 +149,9 @@ def sync_strategies(book: _StrategyBook, toggle: StrategyToggle):
     for strategy in book.as_list():
         name = strategy.pdef.name
         if name not in enabled:
+            logger.info("Stopping %s (pid=%d), because it was removed from '%s'.", name, strategy.pid, book.name)
             strategy.stop()
             book.cross_off(name)
-            logger.warning(f"STOPPING: {name}")
-            logger.info("Stopped %s (pid=%d), because it was removed from '%s'.", name, strategy.pid, book.name)
 
 
 if __name__ == "__main__":

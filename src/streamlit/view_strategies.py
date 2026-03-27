@@ -18,14 +18,21 @@ else:
     if "selected_file" not in st.session_state:
         st.session_state.selected_file = None
 
+    # headers and note above the toggle columns
+    col_name, col_livetest, col_trading = st.columns([3, 2, 2])
+    with col_livetest:
+        st.header("Toggle Live-testing")
+    with col_trading:
+        st.header("Toggle Trading")
     _, col_above_toggles = st.columns([3, 4])
     with col_above_toggles:
         st.markdown(
             "**NOTE**: toggling behaviour will _only_ take effect at the start of the next 5-min market window."
         )
 
+    # render each file's row and toggles
     for filename in files:
-        col_name, col_above_toggles, col_trading = st.columns([3, 2, 2])
+        col_name, col_livetest, col_trading = st.columns([3, 2, 2])
         with col_name:
             btn_type = "primary" if filename == st.session_state.selected_file else "secondary"
             st.button(
@@ -34,7 +41,7 @@ else:
                 type=btn_type,
                 on_click=lambda name=filename: st.session_state.update(selected_file=name),
             )
-        with col_above_toggles:
+        with col_livetest:
             label = "✅ Enabled" if toggles.livetest.is_enabled(filename) else "❌ Disabled"
             if st.button(label, key=f"toggle_enabled_{filename}"):
                 toggles.livetest.toggle(filename)
@@ -45,6 +52,7 @@ else:
                 toggles.trading.toggle(filename)
                 st.rerun()
 
+    # render the selected file's plot and strategy code
     selected_file = st.session_state.selected_file
     if selected_file:
         path = Path(config.strategy.file_dir).joinpath(selected_file)
