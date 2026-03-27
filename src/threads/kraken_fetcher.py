@@ -61,6 +61,7 @@ if __name__ == "__main__":
             if start_ts != last_window_ts:
                 history = fetch_history()
                 redis.set("kraken:history", dumps(history))
+                redis.incr("kraken:history:count")
                 window_start_price = fetch_price_at(start_ts)
                 last_window_ts = start_ts  # only update after success
                 logger.info("New window — start price: %.2f", window_start_price)

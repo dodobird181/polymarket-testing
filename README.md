@@ -31,7 +31,7 @@ If you want to add a new strategy, click "Add Strategy" on the left sidebar, edi
 - [x] Deploy with nginx basicauth.
 - [x] Kraken btc live price, window start price, and historial data (all shared across processes).
 - [x] Add options to plotting function to bet a percent of a cash pool over time (instead of betting the logged amount).
-- [ ] Simulate backtesting via live-replay.
-- [ ] Finish refactor.
+- [ ] Simulate backtesting via live-replay. Check out https://archive.pmxt.dev/Polymarket for historical price data from polymarket.
+- [x] Finish refactor.
 - [ ] Add live-trading capabilities.
 - [ ] Crybook / error handling for each process (similar subfolder structure to enabled and then show red error next to strategy in editor).

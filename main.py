@@ -69,7 +69,7 @@ class _Strategy:
         self._process: Popen | None = None
 
     def start(self) -> Popen:
-        self._process = start(self.pdef)
+        self._process = start(self)
         return self._process
 
     def pid(self) -> int | None:
@@ -120,13 +120,26 @@ def _pipe_reader(name, stream):
         stdout.flush()
 
 
-def start(pdef: _ProcessDef) -> Popen:
+def __strategy_pipe_reader(name, stream):
+    for line in stream:
+        # just add a prefix in the logs for all strategy processes
+        stdout.write(f"<< STRATEGY >> [{name}] {line}")
+        stdout.flush()
+
+
+def start(obj: _ProcessDef | _Strategy) -> Popen:
     """
     Start a process in a new thread.
     """
+
+    # resolve the process definition and pipe reader
+    pdef = obj.pdef if isinstance(obj, _Strategy) else obj
+    pipe_reader = __strategy_pipe_reader if isinstance(obj, _Strategy) else _pipe_reader
+
+    # start the process
     env = {**environ, "PYTHONUNBUFFERED": "1"}
     process = Popen(pdef.command, env=env, stdout=PIPE, stderr=STDOUT, text=True)
-    thread = Thread(target=_pipe_reader, args=(pdef.name, process.stdout), daemon=True)
+    thread = Thread(target=pipe_reader, args=(pdef.name, process.stdout), daemon=True)
     thread.name = pdef.name
     thread.start()
     return process
@@ -140,7 +153,7 @@ def sync_strategies(book: _StrategyBook, toggle: StrategyToggle):
     enabled = {path.stem for path in toggle.dir.glob("*")}
 
     for name in sorted(enabled):
-        if not book.contains(f"strategy_{name}"):
+        if not book.contains(name):
             strategy = _Strategy(name)
             process = strategy.start()
             book.add(strategy)
@@ -152,6 +165,12 @@ def sync_strategies(book: _StrategyBook, toggle: StrategyToggle):
             logger.info("Stopping %s (pid=%d), because it was removed from '%s'.", name, strategy.pid, book.name)
             strategy.stop()
             book.cross_off(name)
+
+    logger.info(
+        "Synced '%s' strategies. Currently running are: %s",
+        book.name,
+        str([x.pdef.name for x in book.as_list()]),
+    )
 
 
 if __name__ == "__main__":
