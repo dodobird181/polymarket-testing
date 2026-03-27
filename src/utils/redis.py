@@ -1,6 +1,10 @@
 from redis import Redis
 
-from config import load_config
+from src.config import load_config
+
+"""
+Provides a singleton redis client (per-thread).
+"""
 
 _client: Redis | None = None
 

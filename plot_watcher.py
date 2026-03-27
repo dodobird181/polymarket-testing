@@ -2,9 +2,9 @@ from pathlib import Path
 from sys import argv
 from time import sleep
 
-from log_config import getLogger
 from market_info import current_window_start, elapsed
 from plot import plot
+from src.config import getLogger
 
 """
 Regenerates the plots in "strategy_plots/" every 5 minutes (at the start of

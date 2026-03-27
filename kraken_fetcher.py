@@ -4,9 +4,8 @@ from time import sleep, time
 import redis
 import requests
 
-from config import load_config
-from log_config import getLogger
 from market_info import current_window_start
+from src.config import getLogger, load_config
 
 logger = getLogger(__name__)
 

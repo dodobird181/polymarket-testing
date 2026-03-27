@@ -4,11 +4,11 @@ import sys
 import threading
 from time import sleep
 
-from log_config import getLogger
 from market_info import current_window_start, elapsed
-from strategy_file_toggle import livetest_toggle
+from src.config import StrategyToggleConfigProvider, getLogger, load_config
 
 logger = getLogger(__name__)
+config = load_config()
 
 ALWAYS_PRESENT = {
     "plot_watcher": [
@@ -60,8 +60,8 @@ def strategy_cmd(name: str) -> list[str]:
         "run",
         "python",
         "live_monitor.py",
-        f"strategy_logs/{name}.jsonl",
-        f"strategy_files/{name}.py",
+        f"{config.strategy.log_dir}/{name}.jsonl",
+        f"{config.strategy.file_dir}/{name}.py",
     ]
 
 
@@ -72,6 +72,7 @@ def stop_strategy(name: str):
 
 
 def sync_strategies():
+    livetest_toggle = StrategyToggleConfigProvider().get().livetest
     enabled = {f.stem for f in livetest_toggle.dir.glob("*")}
     strategy_names = running.keys() - ALWAYS_PRESENT.keys()
     for name in sorted(enabled - running.keys()):
@@ -96,4 +97,5 @@ if __name__ == "__main__":
             sync_strategies()
         if window_seconds == 280:
             ready = True
+        sleep(0.5)
         sleep(0.5)

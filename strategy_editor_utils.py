@@ -3,8 +3,12 @@ import os
 from RestrictedPython import compile_restricted
 from RestrictedPython.transformer import RestrictingNodeTransformer
 
-STRATEGY_FILES_DIR = "strategy_files"
-os.makedirs(STRATEGY_FILES_DIR, exist_ok=True)
+from src.config import load_config
+
+config = load_config()
+os.makedirs(config.strategy.file_dir, exist_ok=True)
+
+# TODO: THis file needs to be refactored / deleted and its code moved elsewhere
 
 
 class StrategyPolicy(RestrictingNodeTransformer):

@@ -1,17 +1,23 @@
+import argparse
 import json
 from datetime import datetime
-from sys import argv
 
 import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
-from log_config import getLogger
+from src.config import getLogger
 
 logger = getLogger(__name__)
 
 
-def plot(logfile: str, savefile: str, show=False):
+def plot(
+    logfile: str,
+    savefile: str,
+    show=False,
+    cash: float | None = None,
+    pct: float | None = None,
+):
     try:
         records = []
         with open(logfile) as f:
@@ -59,12 +65,25 @@ def plot(logfile: str, savefile: str, show=False):
     num_trades = num_wins + num_losses
     win_rate = (num_wins / num_trades * 100) if num_trades > 0 else 0
     total_markets = len({r["state"]["slug"] for r in records})
-    avg_price = (
-        sum(t["price"] for r in traded for t in get_trades(r["state"])) / num_trades if num_trades > 0 else 0
-    )
 
-    total_pnl = sum(e["pnl"] for e in wins + losses)
-    total_invested = sum(e["amount"] * e["price"] for e in wins + losses)
+    simulate = cash is not None and pct is not None
+    if simulate:
+        running_cash = cash
+        for e in sorted(wins + losses, key=lambda e: e["dt"]):
+            sim_amount = running_cash * (pct / 100)  # type: ignore
+            scale = sim_amount / e["amount"] if e["amount"] > 0 else 0
+            e["sim_amount"] = sim_amount
+            e["sim_pnl"] = e["pnl"] * scale
+            running_cash += e["sim_pnl"]
+
+    def _amount(e):
+        return e["sim_amount"] if simulate else e["amount"]
+
+    def _pnl(e):
+        return e["sim_pnl"] if simulate else e["pnl"]
+
+    total_pnl = sum(_pnl(e) for e in wins + losses)
+    total_invested = sum(_amount(e) * e["price"] for e in wins + losses)
     pct_return = (total_pnl / total_invested * 100) if total_invested > 0 else 0
 
     fig = plt.figure(figsize=(12, 8))
@@ -117,14 +136,14 @@ def plot(logfile: str, savefile: str, show=False):
 
     if wins:
         wx = [e["dt"] for e in wins]
-        wy = [e["amount"] for e in wins]
+        wy = [_amount(e) for e in wins]
         ax.scatter(
             wx, wy, c="#00cc66", s=120, zorder=3, label=f"Win ({num_wins})", edgecolors="#009944", linewidths=1
         )
 
     if losses:
         lx = [e["dt"] for e in losses]
-        ly = [e["amount"] for e in losses]
+        ly = [_amount(e) for e in losses]
         ax.scatter(
             lx, ly, c="#ffcc00", s=120, zorder=3, label=f"Loss ({num_losses})", edgecolors="#cc9900", linewidths=1
         )
@@ -139,19 +158,20 @@ def plot(logfile: str, savefile: str, show=False):
         cumulative_pnl = []
         running = 0
         for e in all_trades_sorted:
-            running += e["pnl"]
+            running += _pnl(e)
             cumulative_pnl.append(running)
 
         ax_pnl.plot(pnl_dts, cumulative_pnl, color="#a78bfa", linewidth=2, zorder=2, label="Cumulative P&L")
         ax_pnl.axhline(0, color="#a78bfa", linewidth=0.8, linestyle="--", alpha=0.4)
 
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d %H:%M"))
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     plt.setp(ax.xaxis.get_majorticklabels(), color="white", rotation=20, ha="right")
     plt.setp(ax.yaxis.get_majorticklabels(), color="white")
 
     ax.set_xlabel("Market Start Time", color="#aaaacc", labelpad=8)
-    ax.set_ylabel("Amount Traded ($)", color="#aaaacc", labelpad=8)
+    y_label = f"Simulated Bet Size ($, {pct}% of bankroll)" if simulate else "Amount Traded ($)"
+    ax.set_ylabel(y_label, color="#aaaacc", labelpad=8)
     ax.set_title("Trades Over Time", color="white", pad=10)
 
     scatter_legend = ax.legend(facecolor="#16213e", edgecolor="#4a4a8a", labelcolor="white", fontsize=11)
@@ -181,22 +201,23 @@ def plot(logfile: str, savefile: str, show=False):
 
 
 if __name__ == "__main__":
-    show = False
-    if len(argv) == 3 and argv[2] == "--show":
-        show = True
-        JSONL_FILE = argv[1]
-    elif len(argv) == 2:
-        JSONL_FILE = argv[1]
-    else:
-        raise ValueError(
-            "Usage: python plot_livetest.py [example_log.jsonl] [--show]",
-            {
-                "arg1": "The logfile to graph.",
-                "arg2": "Add this if you want to show the plot. Otherwise will just save and exit.",
-            },
-        )
+    parser = argparse.ArgumentParser(description="Plot Polymarket trading results from a JSONL log file.")
+    parser.add_argument("logfile", help="The JSONL logfile to graph.")
+    parser.add_argument("--show", action="store_true", help="Show the plot interactively instead of just saving.")
+    parser.add_argument("--cash", type=float, default=None, help="Initial bankroll in dollars for simulation mode.")
+    parser.add_argument(
+        "--pct", type=float, default=None, help="Percent of bankroll to wager per bet (e.g. 5 for 5%%)."
+    )
+    args = parser.parse_args()
+
+    if (args.cash is None) != (args.pct is None):
+        parser.error("--cash and --pct must be provided together.")
+
+    print("{filename}.png".format(filename=args.logfile.split(".")[0]))
     plot(
-        logfile=JSONL_FILE,
-        savefile="{filename}.png".format(filename=JSONL_FILE.split(".")[0]),
-        show=show,
+        logfile=args.logfile,
+        savefile="{filename}.png".format(filename=args.logfile.split(".")[0]),
+        show=args.show,
+        cash=args.cash,
+        pct=args.pct,
     )

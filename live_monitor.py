@@ -2,7 +2,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from json import dumps, loads
-from os import mkdir
 from pathlib import Path
 from sys import argv
 from time import sleep
@@ -11,7 +10,6 @@ from typing import Callable
 from py_clob_client.clob_types import MarketOrderArgs, OrderType
 
 from clob_client import get_client
-from log_config import getLogger
 from market_info import (
     Btc5MinMarketInfo,
     Btc5MinMarketOutcome,
@@ -22,8 +20,8 @@ from market_info import (
     get_market_outcome_from_slug,
     to_EST,
 )
-from redis_config import get_redis
-from strategy_file_toggle import trading_toggle
+from src.config import StrategyToggleConfigProvider, getLogger
+from src.utils import get_redis
 
 logger = getLogger(__name__)
 
@@ -257,6 +255,7 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
     start_ts = current_window_start()
     startEST = to_EST(start_ts)
     slug = current_window_slug(start_ts)
+    trading_toggle = StrategyToggleConfigProvider().get().trading
     state = LiveMarketState(
         slug=slug,
         start_ts=start_ts,

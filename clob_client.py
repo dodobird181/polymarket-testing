@@ -1,6 +1,6 @@
 from py_clob_client.client import ClobClient
 
-from config import load_config
+from src.config import load_config
 
 
 class NoClient(Exception):

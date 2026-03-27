@@ -2,13 +2,15 @@ from os import listdir
 from pathlib import Path
 
 import streamlit as st
+from src.config import StrategyToggleConfigProvider, load_config
 
-from strategy_file_toggle import STRATEGY_FILES_DIR, livetest_toggle, trading_toggle
+config = load_config()
+toggles = StrategyToggleConfigProvider.get()
 
-st.set_page_config(layout="wide")
 st.title("List of all strategies")
 
-files = sorted(f for f in listdir(STRATEGY_FILES_DIR) if f.endswith(".py"))
+Path(config.strategy.file_dir).mkdir(exist_ok=True)
+files = sorted(f for f in listdir(config.strategy.file_dir) if f.endswith(".py"))
 
 if not files:
     st.info("No strategy files yet.")
@@ -33,19 +35,19 @@ else:
                 on_click=lambda name=filename: st.session_state.update(selected_file=name),
             )
         with col_above_toggles:
-            label = "✅ Enabled" if livetest_toggle.is_enabled(filename) else "❌ Disabled"
+            label = "✅ Enabled" if toggles.livetest.is_enabled(filename) else "❌ Disabled"
             if st.button(label, key=f"toggle_enabled_{filename}"):
-                livetest_toggle.toggle(filename)
+                toggles.livetest.toggle(filename)
                 st.rerun()
         with col_trading:
-            label = "✅ Strategy is TRADING" if trading_toggle.is_enabled(filename) else "❌ Disabled"
+            label = "✅ Strategy is TRADING" if toggles.trading.is_enabled(filename) else "❌ Disabled"
             if st.button(label, key=f"toggle_live_{filename}"):
-                trading_toggle.toggle(filename)
+                toggles.trading.toggle(filename)
                 st.rerun()
 
     selected_file = st.session_state.selected_file
     if selected_file:
-        path = Path(STRATEGY_FILES_DIR).joinpath(selected_file)
+        path = Path(config.strategy.file_dir).joinpath(selected_file)
         with open(path, "r") as fh:
             content = fh.read()
         st.subheader(f"Viewing: {selected_file}")
@@ -56,6 +58,4 @@ else:
         else:
             st.info("Plot data not available yet. Please enable the strategy and come back in 10 minutes...")
 
-        st.code(content, language="python")
-        st.code(content, language="python")
         st.code(content, language="python")
