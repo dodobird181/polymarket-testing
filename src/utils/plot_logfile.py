@@ -1,6 +1,7 @@
 import argparse
 import json
 from datetime import datetime
+from math import inf
 from pathlib import Path
 
 import matplotlib.dates as mdates
@@ -18,6 +19,7 @@ def plot_logfile(
     show=False,
     cash: float | None = None,
     pct: float | None = None,
+    max_bet: float | None = None,
 ):
     try:
         records = []
@@ -66,12 +68,14 @@ def plot_logfile(
     num_trades = num_wins + num_losses
     win_rate = (num_wins / num_trades * 100) if num_trades > 0 else 0
     total_markets = len({r["state"]["slug"] for r in records})
+    max_bet = inf if max_bet is None else max_bet
 
     simulate = cash is not None and pct is not None
     if simulate:
         running_cash = cash
         for e in sorted(wins + losses, key=lambda e: e["dt"]):
-            sim_amount = running_cash * (pct / 100)  # type: ignore
+            sim_amount = min(running_cash * (pct / 100), max_bet)  # type: ignore
+            logger.info(sim_amount)
             scale = sim_amount / e["amount"] if e["amount"] > 0 else 0
             e["sim_amount"] = sim_amount
             e["sim_pnl"] = e["pnl"] * scale
@@ -209,7 +213,16 @@ if __name__ == "__main__":
     parser.add_argument("--show", action="store_true", help="Show the plot interactively after saving.")
     parser.add_argument("--cash", type=float, default=None, help="Initial bankroll in dollars for simulation mode.")
     parser.add_argument(
-        "--pct", type=float, default=None, help="Percent of bankroll to wager per bet (e.g. 5 for 5%%)."
+        "--pct",
+        type=float,
+        default=None,
+        help="Percent of bankroll to wager per bet (e.g. 5 for 5%%).",
+    )
+    parser.add_argument(
+        "--max-bet",
+        type=float,
+        default=None,
+        help="Maximum cash bet, regardless of the percent of total cash pool.",
     )
     args = parser.parse_args()
 
@@ -222,4 +235,5 @@ if __name__ == "__main__":
         show=args.show,
         cash=args.cash,
         pct=args.pct,
+        max_bet=args.max_bet,
     )
