@@ -1,10 +1,12 @@
 from dataclasses import dataclass
-from logging import INFO, WARNING, _nameToLevel, basicConfig, getLogger
+from logging import INFO, WARNING, Formatter, _nameToLevel, basicConfig, getLogger
 from os import environ
 
 from dotenv import load_dotenv
 
 DEFAULT_LOG_LEVEL = INFO
+LOG_DATE_FORMAT = "%Y-%m-%d @ %I:%M:%S %p %Z"
+
 DEFAULT_STRATEGY_FILE_DIR = "data/strategy"
 DEFAULT_STRATEGY_LOG_DIR = "data/logs"
 DEFAULT_STRATEGY_PLOT_DIR = "data/plots"
@@ -31,6 +33,9 @@ def _resolve_log_level_from_environ() -> int:
 # a static dictionary that defines which third-party logs need to be silenced.
 SILENCE_LOGS = {
     "httpx": WARNING,
+    "httpcore": WARNING,
+    "hpack": WARNING,
+    "urllib3": WARNING,
     "watchdog": INFO,
     "matplotlib": INFO,
     "PIL": INFO,
@@ -80,10 +85,18 @@ def load_config() -> Config:
         )
         basicConfig(
             level=_config.log_level,
-            format="[%(asctime)s] %(levelname)s: %(message)s",
-            datefmt="%Y-%m-%d @ %I:%M:%S %p %Z",
+            format="(%(asctime)s) %(levelname)s: %(message)s",
+            datefmt=LOG_DATE_FORMAT,
         )
         [getLogger(module).setLevel(level) for module, level in SILENCE_LOGS.items()]
-        logger = getLogger(__name__)
-        logger.info("Loaded config.")
     return _config
+
+
+def set_log_name(name: str) -> None:
+    for handler in getLogger().handlers:
+        handler.setFormatter(
+            Formatter(
+                f"[{name}] (%(asctime)s) %(levelname)s: %(message)s",
+                datefmt=LOG_DATE_FORMAT,
+            )
+        )

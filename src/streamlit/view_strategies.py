@@ -52,7 +52,7 @@ else:
             content = fh.read()
         st.subheader(f"Viewing: {selected_file}")
 
-        plot_path = Path("strategy_plots") / selected_file.replace(".py", ".png")
+        plot_path = Path(config.strategy.plot_dir) / selected_file.replace(".py", ".png")
         if plot_path.exists():
             st.image(str(plot_path), width=1000)
         else:

@@ -1,10 +1,13 @@
-import json
+from json import dumps
+from pathlib import Path
+from sys import path as systempath
 from time import sleep, time
 
-import redis
-import requests
+from requests import get as GET
 
+systempath.insert(0, str(Path(__file__).parents[2]))
 from src.config import getLogger, load_config
+from src.utils import get_redis
 from src.utils.market_info import current_window_start
 
 logger = getLogger(__name__)
@@ -15,14 +18,14 @@ KRAKEN_RESULT_KEY = "XXBTZUSD"
 
 
 def fetch_live_price() -> float:
-    resp = requests.get(f"{KRAKEN_BASE}/Ticker", params={"pair": KRAKEN_PAIR}, timeout=5)
+    resp = GET(f"{KRAKEN_BASE}/Ticker", params={"pair": KRAKEN_PAIR}, timeout=5)
     resp.raise_for_status()
     return float(resp.json()["result"][KRAKEN_RESULT_KEY]["c"][0])
 
 
 def fetch_price_at(ts: int) -> float:
     """Returns the open price of the 5-min candle starting at ts (seconds)."""
-    resp = requests.get(
+    resp = GET(
         f"{KRAKEN_BASE}/OHLC",
         params={"pair": KRAKEN_PAIR, "interval": 5, "since": ts - 1},
         timeout=5,
@@ -34,7 +37,7 @@ def fetch_price_at(ts: int) -> float:
 
 def fetch_history() -> list:
     """Fetch 5-min BTC history over the course of 24 hours (288 completed candles)."""
-    resp = requests.get(
+    resp = GET(
         f"{KRAKEN_BASE}/OHLC",
         params={"pair": KRAKEN_PAIR, "interval": 5},
         timeout=10,
@@ -47,7 +50,7 @@ def fetch_history() -> list:
 
 if __name__ == "__main__":
     config = load_config()
-    r = redis.Redis.from_url(config.redis_url, socket_connect_timeout=2, socket_timeout=2)
+    redis = get_redis()
 
     last_window_ts: int | None = None
     window_start_price: float | None = None
@@ -57,15 +60,15 @@ if __name__ == "__main__":
             start_ts = current_window_start()
             if start_ts != last_window_ts:
                 history = fetch_history()
-                r.set("kraken:history", json.dumps(history))
+                redis.set("kraken:history", dumps(history))
                 window_start_price = fetch_price_at(start_ts)
                 last_window_ts = start_ts  # only update after success
                 logger.info("New window — start price: %.2f", window_start_price)
 
             live_price = fetch_live_price()
-            r.set(
+            redis.set(
                 "kraken:live",
-                json.dumps(
+                dumps(
                     {
                         "live_price": live_price,
                         "window_start_price": window_start_price,

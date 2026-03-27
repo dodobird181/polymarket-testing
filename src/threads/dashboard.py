@@ -1,7 +1,6 @@
 from pathlib import Path
 from sys import path as systempath
 
-# add "src" dir to path because streamlit's working directory is different from default python
 systempath.insert(0, str(Path(__file__).parents[2]))
 
 from streamlit import Page, navigation, set_page_config

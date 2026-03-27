@@ -4,14 +4,17 @@ from enum import Enum
 from json import dumps, loads
 from pathlib import Path
 from sys import argv
+from sys import path as systempath
 from time import sleep
 from typing import Callable
 
 from py_clob_client.clob_types import MarketOrderArgs, OrderType
 
-from clob_client import get_client
+systempath.insert(0, str(Path(__file__).parents[2]))
+
 from src.config import StrategyToggleConfigProvider, getLogger
 from src.utils import get_redis
+from src.utils.clob_client import get_clob_client
 from src.utils.market_info import (
     Btc5MinMarketInfo,
     Btc5MinMarketOutcome,
@@ -250,7 +253,7 @@ def run_sam_strategy_higher_buy_threshold(state: LiveMarketState) -> Strategy.Re
 def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMarketState:
 
     # initialize live monitor for the current 5-min market
-    client = get_client()
+    client = get_clob_client()
     info = get_current_market_info()
     start_ts = current_window_start()
     startEST = to_EST(start_ts)
@@ -358,9 +361,6 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
         except Exception:
             return state
 
-        logger.debug(
-            f"{state.slug} {state.elapsed_seconds}s :: {state.price.__dict__} {[trade.display_str() for trade in state.trades] if len(state.trades) > 0 else '[No Trades]'} {strategy_result.metadata}"
-        )
         sleep(0.1)
 
 
@@ -369,7 +369,6 @@ def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) ->
     entry = {"state": state.to_dict(), "outcome": outcome.value}
     with LOG_FILE.open("a") as f:
         f.write(dumps(entry) + "\n")
-    # logger.info(dumps(entry, indent=2))
 
 
 def load_strategy_from_file(path: str) -> Strategy:

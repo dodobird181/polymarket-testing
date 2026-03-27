@@ -2,6 +2,8 @@ from py_clob_client.client import ClobClient
 
 from src.config import load_config
 
+config = load_config()
+
 
 class NoClient(Exception):
     """
@@ -11,12 +13,8 @@ class NoClient(Exception):
     ...
 
 
-def get_client():
-
-    config = load_config()
-
+def get_clob_client():
     try:
-
         host = "https://clob.polymarket.com"
         chain_id = 137  # Polygon mainnet
 
