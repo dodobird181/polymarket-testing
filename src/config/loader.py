@@ -32,6 +32,8 @@ def _resolve_log_level_from_environ() -> int:
 SILENCE_LOGS = {
     "httpx": WARNING,
     "watchdog": INFO,
+    "matplotlib": INFO,
+    "PIL": INFO,
 }
 
 
@@ -79,7 +81,7 @@ def load_config() -> Config:
         basicConfig(
             level=_config.log_level,
             format="[%(asctime)s] %(levelname)s: %(message)s",
-            datefmt="%Y-%m-%d @ %I:%M %p %Z",
+            datefmt="%Y-%m-%d @ %I:%M:%S %p %Z",
         )
         [getLogger(module).setLevel(level) for module, level in SILENCE_LOGS.items()]
         logger = getLogger(__name__)
