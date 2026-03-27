@@ -78,8 +78,8 @@ def load_config() -> Config:
         )
         basicConfig(
             level=_config.log_level,
-            format="%(asctime)s %(levelname)s: %(message)s",
-            datefmt="%B %d, %Y at %I:%M %p %Z",
+            format="[%(asctime)s] %(levelname)s: %(message)s",
+            datefmt="%Y-%m-%d @ %I:%M %p %Z",
         )
         [getLogger(module).setLevel(level) for module, level in SILENCE_LOGS.items()]
         logger = getLogger(__name__)
