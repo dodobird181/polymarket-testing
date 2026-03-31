@@ -34,6 +34,11 @@ CORE_PROCESSES = [
         name="kraken_fetcher",
         command=["poetry", "run", "python", "src/threads/kraken_fetcher.py"],
     ),
+    # execute realtime trades on Polymarket
+    _ProcessDef(
+        name="trade_processor",
+        command=["poetry", "run", "python", "src/threads/trade_processor.py"],
+    ),
     # webapp for viewing, creating, and toggling strategies
     _ProcessDef(
         name="streamlit_app",
