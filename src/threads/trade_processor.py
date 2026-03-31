@@ -6,8 +6,8 @@ from src.config import getLogger, load_config
 from src.utils.redis import mark_done, wait_for_trade_to_process
 
 """
-Trade processor scans a redis queue for incoming trades and broadcasts them to Polymarket.
-Failed trades remain in queue:processing for manual recovery.
+Scans a redis queue for incoming trades and broadcasts them to Polymarket. Failed trades
+remain in the processing queue for manual recovery.
 """
 
 logger = getLogger(__name__)

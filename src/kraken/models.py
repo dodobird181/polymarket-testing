@@ -39,7 +39,11 @@ class KrakenData:
 
     @classmethod
     def from_dict(cls, d: dict) -> "KrakenData":
-        return cls(**d)
+        return cls(
+            live_price=d["live_price"],
+            window_start_price=d["window_start_price"],
+            history=[cls.Candle(**c) for c in d["history"]],
+        )
 
 
 if __name__ == "__main__":

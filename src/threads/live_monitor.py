@@ -11,9 +11,9 @@ from typing import Callable
 from py_clob_client.clob_types import MarketOrderArgs, OrderType
 
 systempath.insert(0, str(Path(__file__).parents[2]))
-
 from src.config import StrategyToggleConfigProvider, getLogger
-from src.utils import get_redis
+from src.kraken import KrakenData
+from src.trade import Trade
 from src.utils.clob_client import get_clob_client
 from src.utils.market_info import (
     Btc5MinMarketInfo,
@@ -25,6 +25,11 @@ from src.utils.market_info import (
     get_market_outcome_from_slug,
     to_EST,
 )
+from src.utils.redis import get_kraken_data
+
+"""
+Entrypoint for a trading strategy.
+"""
 
 logger = getLogger(__name__)
 
@@ -57,36 +62,6 @@ class LiveMarketState:
         # exclude kraken BTC price information when logging the current market session
         d.pop("kraken")
         return d
-
-
-def read_kraken_data() -> LiveMarketState.KrakenData | None:
-    try:
-        redis = get_redis()
-        raw_live, raw_history = redis.get("kraken:live"), redis.get("kraken:history")
-        if raw_live is None or raw_history is None:
-            return None
-        data = loads(raw_live)  # type: ignore[arg-type]
-        Candle = LiveMarketState.KrakenData.Candle
-        return LiveMarketState.KrakenData(
-            live_price=data["live_price"],
-            window_start_price=data["window_start_price"],
-            history=[
-                Candle(
-                    open_time=k[0],
-                    open=float(k[1]),
-                    high=float(k[2]),
-                    low=float(k[3]),
-                    close=float(k[4]),
-                    vwap=float(k[5]),
-                    volume=float(k[6]),
-                    trade_count=k[7],
-                )
-                for k in loads(raw_history)  # type: ignore[arg-type]
-            ],
-        )
-    except Exception as e:
-        logger.warning("Failed to load kraken data.", exc_info=e)
-        return None
 
 
 @dataclass
@@ -207,7 +182,7 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
         elapsed_seconds=0,
         price=LiveMarketState.EstimatedPrice(up=0.5, down=0.5),
         info=info,
-        kraken=read_kraken_data(),
+        kraken=get_kraken_data(),
     )
 
     # start polling for price updates with out strategy
@@ -296,7 +271,7 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
                 info=state.info,
                 # append new trade to list if one was signaled
                 trades=total_trades,
-                kraken=read_kraken_data(),
+                kraken=get_kraken_data(),
             )
 
         except Exception:
@@ -415,5 +390,4 @@ if __name__ == "__main__":
             sleep(5)
         except Exception as e:
             logger.error("Something went wrong while trading: %s", STRATEGY.run.__name__, exc_info=e)
-            sleep(5)
             sleep(5)

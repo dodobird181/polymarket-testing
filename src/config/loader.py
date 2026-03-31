@@ -71,8 +71,7 @@ class Config:
 
         @dataclass
         class Kraken:
-            btc_history_key: str
-            btc_live_price_key: str
+            kraken_data_key: str
 
         trade: Trade
         kraken: Kraken
@@ -114,11 +113,7 @@ def load_config() -> Config:
                     + str(_resolve_with_fallback("REDIS_TRADE_PROCESSING_KEY", DEFAULT_REDIS_TRADE_PROCESSING_KEY)),
                 ),
                 kraken=Config.Redis.Kraken(
-                    btc_history_key=redis_key_prefix
-                    + str(
-                        _resolve_with_fallback("REDIS_KRAKEN_BTC_HISTORY_KEY", DEFAULT_REDIS_KRAKEN_BTC_HISTORY_KEY)
-                    ),
-                    btc_live_price_key=redis_key_prefix
+                    kraken_data_key=redis_key_prefix
                     + str(
                         _resolve_with_fallback(
                             "REDIS_KRAKEN_BTC_LIVE_PRICE_KEY", DEFAULT_REDIS_KRAKEN_BTC_LIVE_PRICE_KEY
