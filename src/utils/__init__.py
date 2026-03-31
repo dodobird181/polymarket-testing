@@ -9,5 +9,4 @@ from src.utils.market_info import (
     to_EST,
 )
 from src.utils.plot_logfile import plot_logfile
-from src.utils.redis import get_redis
 from src.utils.strategy_toggle import StrategyToggle

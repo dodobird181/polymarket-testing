@@ -11,6 +11,11 @@ DEFAULT_STRATEGY_FILE_DIR = "data/strategy"
 DEFAULT_STRATEGY_LOG_DIR = "data/logs"
 DEFAULT_STRATEGY_PLOT_DIR = "data/plots"
 
+DEFAULT_REDIS_TRADE_PENDING_KEY = "trade_queue:pending"
+DEFAULT_REDIS_TRADE_PROCESSING_KEY = "trade_queue:processing"
+DEFAULT_REDIS_KRAKEN_BTC_HISTORY_KEY = "kraken:btc_history"
+DEFAULT_REDIS_KRAKEN_BTC_LIVE_PRICE_KEY = "kraken:btc_live_price"
+
 
 def _resolve_with_fallback(env_key: str, default: str | int | float) -> str | int | float:
     if env_key in environ:
@@ -56,10 +61,26 @@ class Config:
         log_dir: str
         plot_dir: str
 
+    @dataclass
+    class Redis:
+
+        @dataclass
+        class Trade:
+            pending_key: str
+            processing_key: str
+
+        @dataclass
+        class Kraken:
+            btc_history_key: str
+            btc_live_price_key: str
+
+        trade: Trade
+        kraken: Kraken
+        url: str
+
     polymarket: Polymarket
     strategy: Strategy
-
-    redis_url: str
+    redis: Redis
     log_level: int
 
 
@@ -70,6 +91,10 @@ def load_config() -> Config:
     global _config
     if _config is None:
         load_dotenv()
+        if environ["REDIS_KEY_PREFIX"] is None:
+            raise Exception("REDIS_KEY_PREFIX missing from environment.")
+        else:
+            redis_key_prefix = environ["REDIS_KEY_PREFIX"]
         _config = Config(
             polymarket=Config.Polymarket(
                 private_key=environ["POLYMARKET_PRIVATE_KEY"],
@@ -80,7 +105,27 @@ def load_config() -> Config:
                 log_dir=str(_resolve_with_fallback("STRATEGY_LOG_DIR", DEFAULT_STRATEGY_LOG_DIR)),
                 plot_dir=str(_resolve_with_fallback("STRATEGY_PLOT_DIR", DEFAULT_STRATEGY_PLOT_DIR)),
             ),
-            redis_url=environ["REDIS_URL"],
+            redis=Config.Redis(
+                url=environ["REDIS_URL"],
+                trade=Config.Redis.Trade(
+                    pending_key=redis_key_prefix
+                    + str(_resolve_with_fallback("REDIS_TRADE_PENDING_KEY", DEFAULT_REDIS_TRADE_PENDING_KEY)),
+                    processing_key=redis_key_prefix
+                    + str(_resolve_with_fallback("REDIS_TRADE_PROCESSING_KEY", DEFAULT_REDIS_TRADE_PROCESSING_KEY)),
+                ),
+                kraken=Config.Redis.Kraken(
+                    btc_history_key=redis_key_prefix
+                    + str(
+                        _resolve_with_fallback("REDIS_KRAKEN_BTC_HISTORY_KEY", DEFAULT_REDIS_KRAKEN_BTC_HISTORY_KEY)
+                    ),
+                    btc_live_price_key=redis_key_prefix
+                    + str(
+                        _resolve_with_fallback(
+                            "REDIS_KRAKEN_BTC_LIVE_PRICE_KEY", DEFAULT_REDIS_KRAKEN_BTC_LIVE_PRICE_KEY
+                        )
+                    ),
+                ),
+            ),
             log_level=_resolve_log_level_from_environ(),
         )
         basicConfig(

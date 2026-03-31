@@ -14,8 +14,7 @@ def get_redis() -> Redis:
     if _client is None:
         config = load_config()
         _client = Redis.from_url(
-            config.redis_url,
+            config.redis.url,
             socket_connect_timeout=2,
-            socket_timeout=2,
         )
     return _client

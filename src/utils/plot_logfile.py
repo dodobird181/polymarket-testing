@@ -89,7 +89,8 @@ def plot_logfile(
 
     total_pnl = sum(_pnl(e) for e in wins + losses)
     total_invested = sum(_amount(e) * e["price"] for e in wins + losses)
-    pct_return = (total_pnl / total_invested * 100) if total_invested > 0 else 0
+    pct_return_base = cash if simulate else total_invested
+    pct_return = (total_pnl / pct_return_base * 100) if pct_return_base else 0
 
     fig = plt.figure(figsize=(12, 8))
     fig.patch.set_facecolor("#1a1a2e")

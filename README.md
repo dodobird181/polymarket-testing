@@ -34,4 +34,5 @@ If you want to add a new strategy, click "Add Strategy" on the left sidebar, edi
 - [ ] Simulate backtesting via live-replay. Check out https://archive.pmxt.dev/Polymarket for historical price data from polymarket.
 - [x] Finish refactor.
 - [ ] Add live-trading capabilities.
+- [ ] Unit-tests, especially kraken_fetcher.py, live_monitor.py, and trade_processor.py.
 - [ ] Crybook / error handling for each process (similar subfolder structure to enabled and then show red error next to strategy in editor).

@@ -30,33 +30,6 @@ logger = getLogger(__name__)
 
 
 @dataclass
-class Trade:
-    """
-    A buy or sell trading signal that can be transmitted to Polymarket.
-    """
-
-    class Side(Enum):
-        BUY = "buy"
-        SELL = "sell"
-
-    class Outcome(Enum):
-        UP = "up"
-        DOWN = "down"
-
-    outcome: Outcome
-    clob: str
-    side: Side
-    amount: float
-    price: float
-
-    # datetime for logging
-    dt: float
-
-    def display_str(self) -> str:
-        return f"{self.side} ${self.amount} of {self.outcome.name} at ${self.price}"
-
-
-@dataclass
 class LiveMarketState:
     """
     The current state of a live BTC 5-min market.
@@ -66,38 +39,6 @@ class LiveMarketState:
     class EstimatedPrice:
         up: float
         down: float
-
-    @dataclass
-    class KrakenData:
-        """
-        BTC price kraken data.
-
-        NOTE:   This is not always 100% accurate because polymarket gets their price directly
-                from the blockchain. It is usually within about $5 USD from the polymarket price.
-
-        """
-
-        @dataclass
-        class Candle:
-            open_time: int  # seconds
-            open: float
-            high: float
-            low: float
-            close: float
-            vwap: float
-            volume: float
-            trade_count: int
-
-        # The live market price according to Kraken. NOTE: Updated every second.
-        live_price: float
-
-        # The BTC price at the start of the market interval.
-        window_start_price: float
-
-        # History is a list of the past ~24 hours (287 5-minute intervals), in aescending order.
-        # I.e., history[-1] is the previous 5-min interval from the current market. history[-4]
-        # is 4 intervals ago.
-        history: list[Candle]
 
     slug: str
     start_ts: int
