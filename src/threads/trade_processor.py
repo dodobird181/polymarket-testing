@@ -3,7 +3,7 @@ from sys import path as systempath
 
 systempath.insert(0, str(Path(__file__).parents[2]))
 from src.config import getLogger, load_config
-from src.utils.redis.trade import mark_done, wait_for_trade_to_process
+from src.utils.redis import mark_done, wait_for_trade_to_process
 
 """
 Trade processor scans a redis queue for incoming trades and broadcasts them to Polymarket.

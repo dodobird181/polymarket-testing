@@ -3,19 +3,17 @@ from pathlib import Path
 from sys import path as systempath
 from time import sleep, time
 
-from requests import get as GET
-
 systempath.insert(0, str(Path(__file__).parents[2]))
 from src.config import getLogger, load_config
-from src.utils import get_redis
-from src.utils.market_info import current_window_start
+from src.kraken import fetch_history, fetch_live_price, fetch_price_at
+from src.utils import current_window_start
+from src.utils.redis import set_kraken_data
 
 logger = getLogger(__name__)
 
 
 if __name__ == "__main__":
     config = load_config()
-    redis = get_redis()
 
     last_window_ts: int | None = None
     window_start_price: float | None = None
