@@ -1,9 +1,10 @@
+from argparse import ArgumentParser
 from datetime import datetime
-from json import dumps
 from pathlib import Path
-from sys import argv
 from sys import path as systempath
 from time import sleep
+
+from py_clob_client.clob_types import OrderType
 
 systempath.insert(0, str(Path(__file__).parents[2]))
 from src.config import StrategyToggleConfigProvider, getLogger
@@ -15,10 +16,10 @@ from src.utils import (
     current_window_slug,
     current_window_start,
     elapsed,
+    enqueue_trade,
     get_clob_client,
     get_current_market_info,
     get_kraken_data,
-    get_market_outcome_from_slug,
     to_EST,
 )
 
@@ -72,7 +73,7 @@ logger = getLogger(__name__)
 #     return Strategy.Result(trade, {"window": window})
 
 
-def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMarketState:
+def poll_current_market(strategy: Strategy) -> LiveMarketState:
 
     # initialize live monitor for the current 5-min market
     client = get_clob_client()
@@ -80,7 +81,6 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
     start_ts = current_window_start()
     startEST = to_EST(start_ts)
     slug = current_window_slug(start_ts)
-    trading_toggle = StrategyToggleConfigProvider().get().trading
     state = LiveMarketState(
         slug=slug,
         start_ts=start_ts,
@@ -102,56 +102,11 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
         if strategy_result.trade is not None:
             new_trade = strategy_result.trade
             total_trades.append(new_trade)
-            if strategy_file is not None and trading_toggle.is_enabled(strategy_file):
-                # only execute a trade if trading is enabled for the given strategy file. trading is only
-                # available for strategy files.
-                # order = client.create_market_order(
-                #     MarketOrderArgs(
-                #         token_id=new_trade.clob,
-                #         # hard-coded at the minimum bet i can do for now...
-                #         amount=1,
-                #         side=new_trade.side.name.upper(),
-                #         # slippage ceiling — won't pay more than this (set super high because my strategies
-                #         # operate near 1.0 dollar markets. This should really be specified in the strategy file somehow.)
-                #         price=0.99,
-                #     )
-                # )
-                # response = client.post_order(order, OrderType.FOK)  # type: ignore
-                response = {"fake": "order response!"}
-                if "status" in response and "status" == "matched":
-                    logger.info(
-                        "LIVE TRADING: (%s $%s of %s at %s).",
-                        str(new_trade.side.name).upper(),
-                        str(new_trade.amount),
-                        str(new_trade.outcome.name).upper(),
-                        str(new_trade.price),
-                    )
-                else:
-                    logger.info(
-                        "LIVE TRADING: Tried to (%s $%s of %s at %s) but order was cancelled (probably not enough liquidity).",
-                        str(new_trade.side.name).upper(),
-                        str(new_trade.amount),
-                        str(new_trade.outcome.name).upper(),
-                        str(new_trade.price),
-                    )
-
-                if not isinstance(response, dict):
-                    # make sure response is a dictionary
-                    raise ValueError("Got bad response from clob client after posting a market order: %s", response)
-
-                Path("trading_logs").mkdir(exist_ok=True)
-                strategy_name = strategy_file.split(".py")[0]
-                with open(f"trading_logs/{strategy_name}.jsonl", "w") as file:
-                    # log the trade!
-                    file.write(dumps(response | {"slug": slug}))
-            else:
-                logger.info(
-                    "(%s $%s of %s at %s).",
-                    str(new_trade.side.name).upper(),
-                    str(new_trade.amount),
-                    str(new_trade.outcome.name).upper(),
-                    str(new_trade.price),
-                )
+            enqueue_trade(
+                trade=new_trade,
+                state=state,
+                strategy_name=strategy.name,
+            )
         try:
             state = LiveMarketState(
                 slug=slug,
@@ -164,6 +119,7 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
                     up=client.calculate_market_price(
                         token_id=info.up_clob_id,
                         side="BUY",
+                        # TODO: Should probably revisit the order-book depth consequences of using 10 dollars here in the future. Same for below.
                         amount=10,
                         order_type=OrderType.FOK,  # type: ignore
                     ),
@@ -181,26 +137,18 @@ def poll_current_market(strategy: Strategy, strategy_file: str | None) -> LiveMa
             )
 
         except Exception as e:
-            logger.warning("Failed to fetch market prices, returning current state.", exc_info=e)
+            logger.debug("Failed to fetch market prices, returning current state.", exc_info=e)
             return state
 
         sleep(0.1)
 
 
-# TODO: REMOVE ME
-# def log_market_outcome(state: LiveMarketState, outcome: Btc5MinMarketOutcome) -> None:
-#     LOG_FILE.parent.mkdir(exist_ok=True)
-#     entry = {"state": state.to_dict(), "outcome": outcome.value}
-#     with LOG_FILE.open("a") as f:
-#         f.write(dumps(entry) + "\n")
-
-
-def load_strategy_from_file(path: str) -> Strategy:
+def load_strategy_from_file(path: Path) -> Strategy:
     from RestrictedPython import compile_restricted, safe_builtins, safe_globals
 
     source = Path(path).read_text()
     try:
-        compiled = compile_restricted(source, filename=path, mode="exec")
+        compiled = compile_restricted(source, filename=str(path), mode="exec")
     except SyntaxError as e:
         raise ValueError(f"Strategy has a syntax error: {e}")
 
@@ -222,79 +170,52 @@ def load_strategy_from_file(path: str) -> Strategy:
     if "run_strategy" not in restricted_globals:
         raise ValueError(f"{path} must define a function named 'run_strategy'.")
 
-    return Strategy(run=restricted_globals["run_strategy"])  # type: ignore[arg-type]
+    return Strategy(name=path.stem, run=restricted_globals["run_strategy"], file=str(path))  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
 
-    DEFAULT_LOGFILE = "livetest.jsonl"
-    DEFAULT_STRATEGY = Strategy(run=run_sam_strategy)
+    parser = ArgumentParser(description="Live market monitor")
+    parser.add_argument("log_file", type=Path, help="Path to the log file (e.g. livetest.jsonl).")
+    parser.add_argument("strategy", type=Path, help="Path to the strategy file (e.g., livetest.py).")
+    args = parser.parse_args()
 
-    STRATEGY_FILE: str | None = None
-
-    if len(argv) == 3:
-        LOG_FILE = Path(argv[1])
-        arg = argv[2]
-        if arg.endswith(".py") or "/" in arg:
-            STRATEGY_FILE = arg
-            STRATEGY = load_strategy_from_file(arg)
-        else:
-            try:
-                STRATEGY = Strategy(run=globals()[arg])
-            except KeyError:
-                raise ValueError(f"Could not find strategy function '{arg}'.")
-    elif len(argv) == 2:
-        LOG_FILE = Path(argv[1])
-        STRATEGY = DEFAULT_STRATEGY
-    elif len(argv) == 1:
-        LOG_FILE = Path(DEFAULT_LOGFILE)
-        STRATEGY = DEFAULT_STRATEGY
+    if args.strategy.suffix == ".py":
+        strategy = load_strategy_from_file(args.strategy)
     else:
-        raise Exception("Usage: python live_monitor.py [logfile_name.jsonl] [strategy_file.py|strategy_func_name]")
-
-    # # track past markets to record their outcomes after they've closed
-    # # key = slug, value = LiveMarketState
-    # unresolved_markets = {}
-
-    # # resolved markets to flush
-    # flush = []
+        raise ValueError("Expected strategy filename to end in '.py'.")
 
     while True:
         try:
             start_ts = current_window_start()
             slug = current_window_slug(start_ts)
-            if STRATEGY_FILE:
-                STRATEGY = load_strategy_from_file(STRATEGY_FILE)
+            logger.info("Starting poll for market %s...", slug)
+            state = poll_current_market(strategy=strategy)
+            logger.info("Poll for market %s has finished. Waiting for next market to open...", slug)
 
-            # if slug not in unresolved_markets:
+            # # see if any of the previous markets have been resolved and log
+            # for old_slug in unresolved_markets:
+            #     old_state: LiveMarketState = unresolved_markets[old_slug]
+            #     outcome = get_market_outcome_from_slug(old_state.slug)
+            #     if outcome == Btc5MinMarketOutcome.UNRESOLVED:
+            #         pass
+            #     else:
+            #         log_market_outcome(old_state, outcome)
+            #         flush.append(old_slug)
+            # for resolved_slug in flush:
+            #     if resolved_slug in unresolved_markets:
+            #         unresolved_markets.pop(resolved_slug)
 
-            logger.info("Starting poll for market %s.", slug)
-
-            state = poll_current_market(strategy=STRATEGY, strategy_file=STRATEGY_FILE)
-
-                # # see if any of the previous markets have been resolved and log
-                # for old_slug in unresolved_markets:
-                #     old_state: LiveMarketState = unresolved_markets[old_slug]
-                #     outcome = get_market_outcome_from_slug(old_state.slug)
-                #     if outcome == Btc5MinMarketOutcome.UNRESOLVED:
-                #         pass
-                #     else:
-                #         log_market_outcome(old_state, outcome)
-                #         flush.append(old_slug)
-                # for resolved_slug in flush:
-                #     if resolved_slug in unresolved_markets:
-                #         unresolved_markets.pop(resolved_slug)
-
-                # if state.slug not in unresolved_markets:
-                #     # stop from adding more market results if they already exist in the unresolved_markets
-                #     # dictionary. this can happen near the edges of when a market is resolved.
-                #     unresolved_markets[state.slug] = state
-            else:
-                logger.debug(f"Strategy exited early for market {slug}. Waiting for next market to open...")
+            # if state.slug not in unresolved_markets:
+            #     # stop from adding more market results if they already exist in the unresolved_markets
+            #     # dictionary. this can happen near the edges of when a market is resolved.
+            #     unresolved_markets[state.slug] = state
+            # else:
+            #     logger.debug(f"Strategy exited early for market {slug}. Waiting for next market to open...")
 
             # just adding a little buffer here for checking when the new market is open
             # it shoudn't matter for most strategies to get in 5 seconds after market open...
-            logger.debug(f"Unresolved markets: {[x for x in unresolved_markets.keys()]}.")
+            # logger.debug(f"Unresolved markets: {[x for x in unresolved_markets.keys()]}.")
         except Exception as e:
-            logger.error("Something went wrong while trading: %s", STRATEGY.run.__name__, exc_info=e)
+            logger.error("Something went wrong while running strategy: %s", strategy.name, exc_info=e)
         sleep(5)

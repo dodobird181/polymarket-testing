@@ -23,19 +23,9 @@ class SerializableMarketState:
     elapsed_seconds: int
 
     price: EstimatedPrice
-    trades: list[Trade] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return asdict(self) | {
-            "trades": [
-                asdict(trade)
-                | {
-                    "side": trade.side.value,
-                    "outcome": trade.outcome.value,
-                }
-                for trade in self.trades
-            ]
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "SerializableMarketState":
@@ -48,18 +38,6 @@ class SerializableMarketState:
                 up=d["price"]["up"],
                 down=d["price"]["down"],
             ),
-            trades=[
-                Trade(
-                    id=trade["id"],
-                    outcome=Trade.Outcome(trade["outcome"]),
-                    clob=trade["clob"],
-                    side=Trade.Side(trade["side"]),
-                    amount=trade["amount"],
-                    price=trade["price"],
-                    dt=trade["dt"],
-                )
-                for trade in d["trades"]
-            ],
         )
 
 
@@ -71,6 +49,7 @@ class LiveMarketState(SerializableMarketState):
 
     info: Btc5MinMarketInfo
     kraken: KrakenData | None
+    trades: list[Trade] = field(default_factory=list)
 
 
 @dataclass
@@ -84,6 +63,8 @@ class Strategy:
         trade: Trade | None
         metadata: dict
 
+    name: str
     # defines whether or not to trade at any given moment and provides
     # a dictionary
     run: Callable[[LiveMarketState], Result]
+    file: str | None = None

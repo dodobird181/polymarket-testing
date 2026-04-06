@@ -166,18 +166,6 @@ if __name__ == "__main__":
         # pretend we are 2 minutes and 6 seconds into the current market window
         elapsed_seconds=126,
         price=SerializableMarketState.EstimatedPrice(up=0.3, down=0.7),
-        trades=[
-            # pretend there is already a trade in the current market state to simulate
-            # a little closer to real runtime complexity.
-            Trade(
-                outcome=Trade.Outcome.DOWN,
-                clob="FAKE_CLOB",
-                side=Trade.Side.BUY,
-                price=0.9,
-                amount=100,
-                dt=datetime.now().timestamp(),
-            )
-        ],
     )
 
     logger.info("Enqueueing new trade: %s", dumps(new_trade.to_dict(), indent=2))

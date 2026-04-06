@@ -72,9 +72,10 @@ class _Strategy:
             ],
         )
         self._process: Popen | None = None
+        self.name = name
 
-    def start(self) -> Popen:
-        self._process = start(self)
+    def start(self, book_name: str) -> Popen:
+        self._process = start(self, strategy_book_name=book_name)
         return self._process
 
     def pid(self) -> int | None:
@@ -125,21 +126,41 @@ def _pipe_reader(name, stream):
         stdout.flush()
 
 
-def __strategy_pipe_reader(name, stream):
-    for line in stream:
-        # just add a prefix in the logs for all strategy processes
-        stdout.write(f"<< STRATEGY >> [{name}] {line}")
-        stdout.flush()
+def _get_strategy_pipe_reader(strategy_book_name: str):
+    def reader(name, stream):
+        for line in stream:
+            # just add a prefix in the logs for all strategy processes
+            stdout.write(f"[{name} - {strategy_book_name}] {line}")
+            stdout.flush()
+
+    return reader
 
 
-def start(obj: _ProcessDef | _Strategy) -> Popen:
+class MissingStrategyBookName(Exception):
+    """
+    There was an attempt to start a strategy process without specifying it's
+    runbook name, which is needed for proper logging.
+    """
+
+    def __init__(self, strategy: _Strategy):
+        self.strategy = strategy
+        super().__init__(f"Missing strategy-book-name when attempting to start strategy process '{strategy.name}'.")
+
+
+def start(obj: _ProcessDef | _Strategy, strategy_book_name: str | None = None) -> Popen:
     """
     Start a process in a new thread.
     """
 
     # resolve the process definition and pipe reader
-    pdef = obj.pdef if isinstance(obj, _Strategy) else obj
-    pipe_reader = __strategy_pipe_reader if isinstance(obj, _Strategy) else _pipe_reader
+    if isinstance(obj, _Strategy):
+        if strategy_book_name is None:
+            raise MissingStrategyBookName(obj)
+        pdef = obj.pdef
+        pipe_reader = _get_strategy_pipe_reader(strategy_book_name)
+    else:
+        pdef = obj
+        pipe_reader = _pipe_reader
 
     # start the process
     env = {**environ, "PYTHONUNBUFFERED": "1"}
@@ -160,7 +181,7 @@ def sync_strategies(book: _StrategyBook, toggle: StrategyToggle):
     for name in sorted(enabled):
         if not book.contains(name):
             strategy = _Strategy(name)
-            process = strategy.start()
+            process = strategy.start(book.name)
             book.add(strategy)
             logger.info("Started strategy %s (pid=%d).", name, process.pid)
 
@@ -186,10 +207,16 @@ if __name__ == "__main__":
         process = start(pdef)
         logger.info("Started core process %s (pid=%d).", pdef.name, process.pid)
 
-    logger.info("Starting strategies enabled for live-testing...")
+    # give the core processes a few seconds to start up before running strategies...
+    sleep(7)
+
     toggles = StrategyToggleConfigProvider().get()
+
     livetesting_book = _StrategyBook("live-testing")
     sync_strategies(livetesting_book, toggles.livetest)
+
+    trading_book = _StrategyBook("TRADING")
+    sync_strategies(trading_book, toggles.trading)
 
     ready = True
     while True:
@@ -199,6 +226,7 @@ if __name__ == "__main__":
             ready = False
             # sync every 5 mins
             sync_strategies(livetesting_book, toggles.livetest)
+            sync_strategies(trading_book, toggles.trading)
         if window_seconds == 280:
             ready = True
         sleep(0.5)

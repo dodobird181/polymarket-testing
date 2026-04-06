@@ -97,8 +97,6 @@ class Config:
     polymarket: Polymarket
     strategy: Strategy
     redis: Redis
-    # true if the app should broadcast real trades to polymarket
-    broadcast_trades: bool
     log_level: int
 
 
@@ -135,7 +133,6 @@ def load_config() -> Config:
                     )
                 ),
             ),
-            broadcast_trades=True if _resolve_required("BROADCAST_TRADES").upper() == "TRUE" else False,
             log_level=_resolve_log_level_from_environ(),
         )
         basicConfig(

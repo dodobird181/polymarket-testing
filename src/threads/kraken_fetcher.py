@@ -5,8 +5,7 @@ from time import sleep
 systempath.insert(0, str(Path(__file__).parents[2]))
 from src.config import getLogger, load_config
 from src.kraken import KrakenData, fetch_history, fetch_live_price, fetch_price_at
-from src.utils import current_window_start
-from src.utils.redis import set_kraken_data
+from src.utils import current_window_start, set_kraken_data
 
 """
 Fetch kraken data and save it to redis.

@@ -32,6 +32,7 @@ If you want to add a new strategy, click "Add Strategy" on the left sidebar, edi
 - [x] Kraken btc live price, window start price, and historial data (all shared across processes).
 - [x] Add options to plotting function to bet a percent of a cash pool over time (instead of betting the logged amount).
 - [x] Finish refactor.
+- [ ] Add new thread for populating the cache of btc-5-min market outcomes.
 - [ ] Add live-trading capabilities.
     - [ ] Pass state into PendingTrade and have trade_processor log it in the "state" key.
     - [ ] Add polymarket directory to redis and cache the market outcomes for plotting.
