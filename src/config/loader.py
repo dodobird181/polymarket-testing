@@ -4,6 +4,17 @@ from os import environ
 
 from dotenv import load_dotenv
 
+
+class MissingEnvVar(Exception):
+    """
+    A required environment variable is missing.
+    """
+
+    def __init__(self, varname: str):
+        self.varname = varname
+        super().__init__(varname)
+
+
 DEFAULT_LOG_LEVEL = INFO
 LOG_DATE_FORMAT = "%Y-%m-%d @ %I:%M:%S %p %Z"
 
@@ -17,7 +28,13 @@ DEFAULT_REDIS_KRAKEN_BTC_HISTORY_KEY = "kraken:btc_history"
 DEFAULT_REDIS_KRAKEN_BTC_LIVE_PRICE_KEY = "kraken:btc_live_price"
 
 
-def _resolve_with_fallback(env_key: str, default: str | int | float) -> str | int | float:
+def _resolve_required(env_key: str) -> str:
+    if env_key in environ:
+        return environ[env_key]
+    raise MissingEnvVar(env_key)
+
+
+def _resolve_with_fallback(env_key: str, default: str) -> str:
     if env_key in environ:
         return environ[env_key]
     return default
@@ -80,6 +97,8 @@ class Config:
     polymarket: Polymarket
     strategy: Strategy
     redis: Redis
+    # true if the app should broadcast real trades to polymarket
+    broadcast_trades: bool
     log_level: int
 
 
@@ -90,37 +109,33 @@ def load_config() -> Config:
     global _config
     if _config is None:
         load_dotenv()
-        if environ["REDIS_KEY_PREFIX"] is None:
-            raise Exception("REDIS_KEY_PREFIX missing from environment.")
-        else:
-            redis_key_prefix = environ["REDIS_KEY_PREFIX"]
+        redis_key_prefix = _resolve_required("REDIS_KEY_PREFIX")
         _config = Config(
             polymarket=Config.Polymarket(
                 private_key=environ["POLYMARKET_PRIVATE_KEY"],
                 wallet_address=environ["POLYMARKET_USER_WALLET_ADDRESS"],
             ),
             strategy=Config.Strategy(
-                file_dir=str(_resolve_with_fallback("STRATEGY_FILE_DIR", DEFAULT_STRATEGY_FILE_DIR)),
-                log_dir=str(_resolve_with_fallback("STRATEGY_LOG_DIR", DEFAULT_STRATEGY_LOG_DIR)),
-                plot_dir=str(_resolve_with_fallback("STRATEGY_PLOT_DIR", DEFAULT_STRATEGY_PLOT_DIR)),
+                file_dir=_resolve_with_fallback("STRATEGY_FILE_DIR", DEFAULT_STRATEGY_FILE_DIR),
+                log_dir=_resolve_with_fallback("STRATEGY_LOG_DIR", DEFAULT_STRATEGY_LOG_DIR),
+                plot_dir=_resolve_with_fallback("STRATEGY_PLOT_DIR", DEFAULT_STRATEGY_PLOT_DIR),
             ),
             redis=Config.Redis(
                 url=environ["REDIS_URL"],
                 trade=Config.Redis.Trade(
-                    pending_key=redis_key_prefix
-                    + str(_resolve_with_fallback("REDIS_TRADE_PENDING_KEY", DEFAULT_REDIS_TRADE_PENDING_KEY)),
-                    processing_key=redis_key_prefix
-                    + str(_resolve_with_fallback("REDIS_TRADE_PROCESSING_KEY", DEFAULT_REDIS_TRADE_PROCESSING_KEY)),
+                    pending_key=f"{redis_key_prefix}_"
+                    + _resolve_with_fallback("REDIS_TRADE_PENDING_KEY", DEFAULT_REDIS_TRADE_PENDING_KEY),
+                    processing_key=f"{redis_key_prefix}_"
+                    + _resolve_with_fallback("REDIS_TRADE_PROCESSING_KEY", DEFAULT_REDIS_TRADE_PROCESSING_KEY),
                 ),
                 kraken=Config.Redis.Kraken(
-                    kraken_data_key=redis_key_prefix
-                    + str(
-                        _resolve_with_fallback(
-                            "REDIS_KRAKEN_BTC_LIVE_PRICE_KEY", DEFAULT_REDIS_KRAKEN_BTC_LIVE_PRICE_KEY
-                        )
-                    ),
+                    kraken_data_key=f"{redis_key_prefix}_"
+                    + _resolve_with_fallback(
+                        "REDIS_KRAKEN_BTC_LIVE_PRICE_KEY", DEFAULT_REDIS_KRAKEN_BTC_LIVE_PRICE_KEY
+                    )
                 ),
             ),
+            broadcast_trades=True if _resolve_required("BROADCAST_TRADES").upper() == "TRUE" else False,
             log_level=_resolve_log_level_from_environ(),
         )
         basicConfig(

@@ -1,9 +1,16 @@
+from json import dumps
 from pathlib import Path
 from sys import path as systempath
 
 systempath.insert(0, str(Path(__file__).parents[2]))
 from src.config import getLogger, load_config
-from src.utils.redis import mark_done, wait_for_trade_to_process
+from src.trade import broadcast_trade
+from src.utils import (
+    CompletedTrade,
+    ProcessingTrade,
+    mark_completed,
+    wait_for_trade_to_process,
+)
 
 """
 Scans a redis queue for incoming trades and broadcasts them to Polymarket. Failed trades
@@ -11,20 +18,40 @@ remain in the processing queue for manual recovery.
 """
 
 logger = getLogger(__name__)
+config = load_config()
+
+
+def _trade_logpath(processing_trade: ProcessingTrade) -> Path:
+    file_prefix = "trading." if config.broadcast_trades else "live_testing."
+    filename = f"{file_prefix}{processing_trade.strategy_name}.jsonl"
+    return Path(config.strategy.log_dir) / filename
+
+
+def _log_trade(trade: CompletedTrade) -> None:
+    logpath = _trade_logpath(trade)
+    logpath.parent.mkdir(exist_ok=True, parents=True)
+    with open(logpath, "a") as logfile:
+        logfile.write(dumps(trade.to_dict()) + "\n")
+
 
 if __name__ == "__main__":
-    load_config()
-
+    logger.info("Started trade processor!")
     while True:
-        processing_trade = wait_for_trade_to_process()
+        trade = wait_for_trade_to_process()
         try:
-            # TODO: broadcast trade to Polymarket via src/trade/broadcast.py
             logger.info(
-                "Processing trade %s: %s",
-                processing_trade.pending_trade.trade.id,
-                processing_trade.pending_trade.trade.display_str(),
+                "Processing trade '%s' for strategy '%s': %s.",
+                trade.id[:4],
+                trade.strategy_name,
+                trade.display_str(),
             )
-            mark_done(processing_trade)
-            logger.info("Done trade %s", processing_trade.pending_trade.trade.id)
+            try:
+                if config.broadcast_trades is True:
+                    broadcast_trade(trade)
+                completed_trade = mark_completed(trade)
+                _log_trade(completed_trade)
+                logger.info("Successfully processed trade %s.", trade.id)
+            except Exception as e:
+                logger.error("Error broadcasting trade for strategy %s.", trade.strategy_name, exc_info=e)
         except Exception as e:
-            logger.error("Failed to process trade %s: %s", processing_trade.pending_trade.trade.id, e)
+            logger.error("Failed to process trade %s: %s", trade.id, e)

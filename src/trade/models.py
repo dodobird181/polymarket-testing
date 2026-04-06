@@ -1,10 +1,10 @@
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from enum import Enum
 from uuid import uuid4
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Trade:
     """
     A buy or sell trading signal that can be transmitted to Polymarket.
@@ -36,7 +36,10 @@ class Trade:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Trade":
-        return cls(**d | {"outcome": Trade.Outcome(d["outcome"]), "side": Trade.Side(d["side"])})
+        return cls(
+            **{field.name: d[field.name] for field in fields(Trade)}
+            | {"outcome": Trade.Outcome(d["outcome"]), "side": Trade.Side(d["side"])}
+        )
 
 
 if __name__ == "__main__":

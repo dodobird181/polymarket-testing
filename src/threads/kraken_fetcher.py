@@ -8,6 +8,10 @@ from src.kraken import KrakenData, fetch_history, fetch_live_price, fetch_price_
 from src.utils import current_window_start
 from src.utils.redis import set_kraken_data
 
+"""
+Fetch kraken data and save it to redis.
+"""
+
 logger = getLogger(__name__)
 
 
@@ -42,11 +46,13 @@ if __name__ == "__main__":
 
             if window_start_price is not None:
                 live_price = fetch_live_price()
-                set_kraken_data(KrakenData(
-                    live_price=live_price,
-                    window_start_price=window_start_price,
-                    history=history,
-                ))
+                set_kraken_data(
+                    KrakenData(
+                        live_price=live_price,
+                        window_start_price=window_start_price,
+                        history=history,
+                    )
+                )
                 logger.debug("BTC live price: %.2f", live_price)
 
         except Exception as e:
