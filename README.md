@@ -25,13 +25,12 @@ If you want to add a new strategy, click "Add Strategy" on the left sidebar, edi
 ![](thumbnails/add_strategy_thumbnail1.png)
 
 
-#### Todos
+#### Trading MVP TODOs:
 - [x] Make streamlit-added strategy files work with live_monitor.py.
 - [x] Validation on save and before execution of python strategies for security.
 - [x] Deploy with nginx basicauth.
 - [x] Kraken btc live price, window start price, and historial data (all shared across processes).
 - [x] Add options to plotting function to bet a percent of a cash pool over time (instead of betting the logged amount).
-- [ ] Simulate backtesting via live-replay. Check out https://archive.pmxt.dev/Polymarket for historical price data from polymarket.
 - [x] Finish refactor.
 - [ ] Add live-trading capabilities.
     - [ ] Pass state into PendingTrade and have trade_processor log it in the "state" key.
@@ -39,5 +38,9 @@ If you want to add a new strategy, click "Add Strategy" on the left sidebar, edi
 - [ ] New deploy with live-trading capabilities.
     - [ ] Edit systemctl service file to use main.py
     - [ ] Transfer logs to new dir structure (with a backup in case things go wrong).
-- [ ] Unit-tests, especially kraken_fetcher.py, live_monitor.py, and trade_processor.py.
+
+
+### Nice-to-haves:
+- [ ] Simulate backtesting via live-replay. Check out https://archive.pmxt.dev/Polymarket for historical price data from polymarket.
 - [ ] Crybook / error handling for each process (similar subfolder structure to enabled and then show red error next to strategy in editor).
+- [ ] Unit-tests, especially kraken_fetcher.py, live_monitor.py, and trade_processor.py.
