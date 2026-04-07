@@ -93,6 +93,7 @@ class Config:
         trade: Trade
         kraken: Kraken
         url: str
+        key_prefix: str
 
     polymarket: Polymarket
     strategy: Strategy
@@ -120,6 +121,7 @@ def load_config() -> Config:
             ),
             redis=Config.Redis(
                 url=environ["REDIS_URL"],
+                key_prefix=redis_key_prefix,
                 trade=Config.Redis.Trade(
                     pending_key=f"{redis_key_prefix}_"
                     + _resolve_with_fallback("REDIS_TRADE_PENDING_KEY", DEFAULT_REDIS_TRADE_PENDING_KEY),

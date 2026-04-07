@@ -32,12 +32,14 @@ class PendingTrade(Trade):
 
     state: SerializableMarketState
     strategy_name: str
+    mode: str
     enqueued_at: float
 
     def to_dict(self) -> dict:
         return super().to_dict() | {
             "state": self.state.to_dict(),
             "strategy_name": self.strategy_name,
+            "mode": self.mode,
             "enqueued_at": self.enqueued_at,
         }
 
@@ -46,6 +48,7 @@ class PendingTrade(Trade):
         return cls(
             state=SerializableMarketState.from_dict(d["state"]),
             strategy_name=d["strategy_name"],
+            mode=d["mode"],
             enqueued_at=d["enqueued_at"],
             **_parent_kwargs_from_dict(d, Trade),
         )
@@ -87,7 +90,7 @@ class CompletedTrade(ProcessingTrade):
         )
 
 
-def enqueue_trade(trade: Trade, state: SerializableMarketState, strategy_name: str) -> None:
+def enqueue_trade(trade: Trade, state: SerializableMarketState, strategy_name: str, mode: str) -> None:
     """
     Build and add a pending-trade to the queue for processing.
     """
@@ -97,6 +100,7 @@ def enqueue_trade(trade: Trade, state: SerializableMarketState, strategy_name: s
         | {
             "state": state.to_dict(),
             "strategy_name": strategy_name,
+            "mode": mode,
             "enqueued_at": now,
         }
     )

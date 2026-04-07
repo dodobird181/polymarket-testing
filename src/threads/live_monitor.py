@@ -91,7 +91,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
         kraken=get_kraken_data(),
     )
 
-    # start polling for price updates with out strategy
+    # start polling for price updates with our strategy
     while True:
         if datetime.now().timestamp() > state.start_ts + 300:
             # exit condition: the market is over
@@ -106,6 +106,7 @@ def poll_current_market(strategy: Strategy) -> LiveMarketState:
                 trade=new_trade,
                 state=state,
                 strategy_name=strategy.name,
+                mode=args.mode,
             )
         try:
             state = LiveMarketState(
@@ -178,6 +179,12 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Live market monitor")
     parser.add_argument("log_file", type=Path, help="Path to the log file (e.g. livetest.jsonl).")
     parser.add_argument("strategy", type=Path, help="Path to the strategy file (e.g., livetest.py).")
+    parser.add_argument(
+        "--mode",
+        choices=["live-testing", "trading"],
+        required=True,
+        help="Whether this process is live-testing or trading.",
+    )
     args = parser.parse_args()
 
     if args.strategy.suffix == ".py":
@@ -191,7 +198,7 @@ if __name__ == "__main__":
             slug = current_window_slug(start_ts)
             logger.info("Starting poll for market %s...", slug)
             state = poll_current_market(strategy=strategy)
-            logger.info("Poll for market %s has finished. Waiting for next market to open...", slug)
+            logger.info("Order book for market %s is empty. Waiting...", slug)
 
             # # see if any of the previous markets have been resolved and log
             # for old_slug in unresolved_markets:

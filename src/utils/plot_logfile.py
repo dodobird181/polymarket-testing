@@ -3,14 +3,61 @@ import json
 from datetime import datetime
 from math import inf
 from pathlib import Path
+from sys import path as systempath
+
+# When run as a standalone script, Python adds src/utils/ to sys.path, which causes
+# src/utils/redis/ to shadow the redis package. Fix by inserting the project root and
+# removing the script directory.
+_root = str(Path(__file__).resolve().parents[2])
+_here = str(Path(__file__).resolve().parent)
+if _root not in systempath:
+    systempath.insert(0, _root)
+try:
+    systempath.remove(_here)
+except ValueError:
+    pass
 
 import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
 from src.config import getLogger
+from src.utils.market_info import Btc5MinMarketOutcome, get_market_outcome_from_slug
+from src.utils.redis.polymarket import cache_outcome, get_cached_outcome
 
 logger = getLogger(__name__)
+
+
+def _fetch_outcome(slug: str, cache: dict) -> str | None:
+    """
+    Returns 'up' or 'down' for a resolved market, or None if still unresolved.
+    Checks the in-memory cache first, then Redis, then the Polymarket API.
+    Caches resolved outcomes back to Redis for future calls.
+    """
+    if slug in cache:
+        return cache[slug]
+
+    try:
+        cached = get_cached_outcome(slug)
+        if cached is not None and cached != Btc5MinMarketOutcome.UNRESOLVED:
+            cache[slug] = cached.value
+            return cached.value
+    except Exception:
+        pass
+
+    try:
+        outcome = get_market_outcome_from_slug(slug)
+        if outcome != Btc5MinMarketOutcome.UNRESOLVED:
+            cache[slug] = outcome.value
+            try:
+                cache_outcome(slug, outcome)
+            except Exception:
+                pass
+            return outcome.value
+    except Exception:
+        pass
+
+    return None
 
 
 def plot_logfile(
@@ -31,43 +78,68 @@ def plot_logfile(
     except FileNotFoundError as e:
         raise ValueError(f"Could not find logfile to graph: '{logfile}'.")
 
-    def get_trades(state: dict) -> list:
-        trade = state.get("trade") or state.get("trades")
-        if not trade:
-            return []
-        if isinstance(trade, dict):
-            return [trade]
-        return trade
+    # Normalize records into a flat list of {market_outcome, trade, start_ts, slug}
+    # regardless of whether the log is the old format (market records with embedded trades
+    # and outcome) or the new format (one CompletedTrade record per trade, no market outcome).
+    is_new_format = records and "id" in records[0] and "strategy_name" in records[0]
+    normalized = []
 
-    traded = [r for r in records if get_trades(r["state"])]
+    if is_new_format:
+        outcome_cache: dict[str, str] = {}
+        for r in records:
+            slug = r["state"]["slug"]
+            market_outcome = _fetch_outcome(slug, outcome_cache)
+            if market_outcome is None:
+                continue  # skip markets that haven't resolved yet
+            normalized.append({
+                "market_outcome": market_outcome,
+                "trade": {"outcome": r["outcome"], "side": r["side"], "amount": r["amount"], "price": r["price"]},
+                "start_ts": r["state"]["start_ts"],
+                "slug": slug,
+            })
+    else:
+        def _get_trades(state: dict) -> list:
+            trade = state.get("trade") or state.get("trades")
+            if not trade:
+                return []
+            return [trade] if isinstance(trade, dict) else trade
+
+        for r in records:
+            for trade in _get_trades(r["state"]):
+                normalized.append({
+                    "market_outcome": r["outcome"],
+                    "trade": trade,
+                    "start_ts": r["state"]["start_ts"],
+                    "slug": r["state"]["slug"],
+                })
 
     wins, losses = [], []
-    for r in traded:
-        for trade in get_trades(r["state"]):
-            outcome_matches = trade["outcome"] == r["outcome"]
-            is_buy = trade.get("side", "buy") == "buy"
-            # BUY: win if outcome matches (you hold winning shares)
-            # SELL: win if outcome does NOT match (you sold away losing shares)
-            is_win = outcome_matches if is_buy else not outcome_matches
-            if is_buy:
-                pnl = trade["amount"] * (1 - trade["price"]) if is_win else -trade["amount"] * trade["price"]
-            else:
-                # SELL: you received amount*price upfront; win = shares expired worthless, loss = shares paid out $1
-                pnl = trade["amount"] * trade["price"] if is_win else -trade["amount"] * (1 - trade["price"])
-            entry = {
-                "dt": datetime.fromtimestamp(r["state"]["start_ts"]),
-                "amount": trade["amount"],
-                "price": trade["price"],
-                "pnl": pnl,
-                "slug": r["state"]["slug"],
-            }
-            (wins if is_win else losses).append(entry)
+    for n in normalized:
+        trade = n["trade"]
+        outcome_matches = trade["outcome"] == n["market_outcome"]
+        is_buy = trade.get("side", "buy") == "buy"
+        # BUY: win if outcome matches (you hold winning shares)
+        # SELL: win if outcome does NOT match (you sold away losing shares)
+        is_win = outcome_matches if is_buy else not outcome_matches
+        if is_buy:
+            pnl = trade["amount"] * (1 - trade["price"]) if is_win else -trade["amount"] * trade["price"]
+        else:
+            # SELL: you received amount*price upfront; win = shares expired worthless, loss = shares paid out $1
+            pnl = trade["amount"] * trade["price"] if is_win else -trade["amount"] * (1 - trade["price"])
+        entry = {
+            "dt": datetime.fromtimestamp(n["start_ts"]),
+            "amount": trade["amount"],
+            "price": trade["price"],
+            "pnl": pnl,
+            "slug": n["slug"],
+        }
+        (wins if is_win else losses).append(entry)
 
     num_wins = len(wins)
     num_losses = len(losses)
     num_trades = num_wins + num_losses
     win_rate = (num_wins / num_trades * 100) if num_trades > 0 else 0
-    total_markets = len({r["state"]["slug"] for r in records})
+    total_markets = len({n["slug"] for n in normalized})
     max_bet = inf if max_bet is None else max_bet
 
     simulate = cash is not None and pct is not None

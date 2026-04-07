@@ -60,9 +60,17 @@ else:
             content = fh.read()
         st.subheader(f"Viewing: {selected_file}")
 
-        plot_path = Path(config.strategy.plot_dir) / selected_file.replace(".py", ".png")
-        if plot_path.exists():
-            st.image(str(plot_path), width=1000)
+        stem = selected_file.replace(".py", "")
+        plot_dir = Path(config.strategy.plot_dir)
+        plots = [
+            ("Trading", plot_dir / f"trading.{stem}.png"),
+            ("Live-testing", plot_dir / f"live_testing.{stem}.png"),
+        ]
+        shown = [(label, p) for label, p in plots if p.exists()]
+        if shown:
+            for label, p in shown:
+                st.caption(label)
+                st.image(str(p), width=1000)
         else:
             st.info("Plot data not available yet. Please enable the strategy and come back in 10 minutes...")
 

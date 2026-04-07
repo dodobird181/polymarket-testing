@@ -12,6 +12,7 @@ from src.config import (
     set_log_name,
 )
 from src.utils import StrategyToggle, current_window_start, elapsed
+from src.utils.circuit_breaker import check as circuit_breaker_check
 
 logger = getLogger(__name__)
 config = load_config()
@@ -59,7 +60,7 @@ CORE_PROCESSES = [
 
 class _Strategy:
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, mode: str):
         self.pdef = _ProcessDef(
             name=name,
             command=[
@@ -69,6 +70,8 @@ class _Strategy:
                 "src/threads/live_monitor.py",
                 f"{config.strategy.log_dir}/{name}.jsonl",
                 f"{config.strategy.file_dir}/{name}.py",
+                "--mode",
+                mode,
             ],
         )
         self._process: Popen | None = None
@@ -171,7 +174,7 @@ def start(obj: _ProcessDef | _Strategy, strategy_book_name: str | None = None) -
     return process
 
 
-def sync_strategies(book: _StrategyBook, toggle: StrategyToggle):
+def sync_strategies(book: _StrategyBook, toggle: StrategyToggle, mode: str):
     """
     Start strategies that are toggled "on", stop strategies that are toggled "off", and
     add or remove them from the given strategy book, respectively.
@@ -180,7 +183,7 @@ def sync_strategies(book: _StrategyBook, toggle: StrategyToggle):
 
     for name in sorted(enabled):
         if not book.contains(name):
-            strategy = _Strategy(name)
+            strategy = _Strategy(name, mode=mode)
             process = strategy.start(book.name)
             book.add(strategy)
             logger.info("Started strategy %s (pid=%d).", name, process.pid)
@@ -213,10 +216,10 @@ if __name__ == "__main__":
     toggles = StrategyToggleConfigProvider().get()
 
     livetesting_book = _StrategyBook("live-testing")
-    sync_strategies(livetesting_book, toggles.livetest)
+    sync_strategies(livetesting_book, toggles.livetest, mode="live-testing")
 
     trading_book = _StrategyBook("TRADING")
-    sync_strategies(trading_book, toggles.trading)
+    sync_strategies(trading_book, toggles.trading, mode="trading")
 
     ready = True
     while True:
@@ -224,9 +227,13 @@ if __name__ == "__main__":
         window_seconds = elapsed(start_ts)
         if window_seconds == 0 and ready:
             ready = False
+            # trip circuit breaker for any trading strategy whose win rate has fallen too low
+            for strategy in trading_book.as_list():
+                if toggles.trading.is_enabled(strategy.name) and circuit_breaker_check(strategy.name):
+                    toggles.trading.toggle(strategy.name)
             # sync every 5 mins
-            sync_strategies(livetesting_book, toggles.livetest)
-            sync_strategies(trading_book, toggles.trading)
+            sync_strategies(livetesting_book, toggles.livetest, mode="live-testing")
+            sync_strategies(trading_book, toggles.trading, mode="trading")
         if window_seconds == 280:
             ready = True
         sleep(0.5)
