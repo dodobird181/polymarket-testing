@@ -1,3 +1,4 @@
+from src.utils.account_info import get_polymarket_account_balance
 from src.utils.clob_client import get_clob_client
 from src.utils.market_info import (
     Btc5MinMarketInfo,

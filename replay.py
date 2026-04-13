@@ -120,7 +120,9 @@ def main():
     for i, x in enumerate(boundaries):
         is_target = x == 0
         ax.axvline(
-            x=x, color="white", linewidth=1,
+            x=x,
+            color="white",
+            linewidth=1,
             linestyle="--" if is_target else ":",
             alpha=0.6 if is_target else 0.35,
         )
@@ -135,15 +137,18 @@ def main():
         sign = "+" if delta >= 0 else ""
         mid_x = (w_start + w_end) / 2
         ax.text(
-            mid_x, 0.97,
+            mid_x,
+            0.97,
             f"{sign}${delta:.0f}",
-            color=color, fontsize=9, ha="center", va="top",
+            color=color,
+            fontsize=9,
+            ha="center",
+            va="top",
             transform=ax.get_xaxis_transform(),
         )
 
     if buys:
-        ax.scatter(buy_times, buy_prices, color="#00ff88", s=120, zorder=5,
-                   label=f"Buy ({len(buys)})")
+        ax.scatter(buy_times, buy_prices, color="#00ff88", s=120, zorder=5, label=f"Buy ({len(buys)})")
         for bt, bp, b in zip(buy_times, buy_prices, buys):
             ax.annotate(
                 f"${b['price']:.3f}",

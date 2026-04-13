@@ -4,7 +4,7 @@ from sys import path as systempath
 
 systempath.insert(0, str(Path(__file__).parents[2]))
 from src.config import getLogger, load_config
-from src.trade import broadcast_trade
+from src.trade.broadcast import broadcast_trade
 from src.utils import (
     CompletedTrade,
     ProcessingTrade,

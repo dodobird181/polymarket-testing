@@ -7,10 +7,9 @@ from time import sleep
 from py_clob_client.clob_types import OrderType
 
 systempath.insert(0, str(Path(__file__).parents[2]))
-from src.config import StrategyToggleConfigProvider, getLogger
+from src.config import getLogger
 from src.trade import Trade
 from src.utils import (
-    Btc5MinMarketOutcome,
     LiveMarketState,
     Strategy,
     current_window_slug,
@@ -28,49 +27,6 @@ Entrypoint for a trading strategy.
 """
 
 logger = getLogger(__name__)
-
-
-# def run_sam_strategy(state: LiveMarketState) -> Strategy.Result:
-
-#     def get_window():
-#         if state.elapsed_seconds < 180:
-#             return "before"
-#         elif state.elapsed_seconds >= 180 and state.elapsed_seconds < 270:
-#             return "can_trigger"
-#         else:
-#             return "after"
-
-#     def in_buy_threshold(price: float, min=0.9, max=0.95) -> bool:
-#         return price >= min and price <= max
-
-#     def get_buy_amount():
-#         return 10
-
-#     trade = None
-#     window = get_window()
-#     if len(state.trades) == 0:
-#         amount = get_buy_amount()
-#         if window == "can_trigger":
-#             if in_buy_threshold(state.price.up):
-#                 trade = Trade(
-#                     outcome=Trade.Outcome.UP,
-#                     clob=state.info.up_clob_id,
-#                     side=Trade.Side.BUY,
-#                     amount=amount,
-#                     price=state.price.up,
-#                     dt=datetime.now().timestamp(),
-#                 )
-#             elif in_buy_threshold(state.price.down):
-#                 trade = Trade(
-#                     outcome=Trade.Outcome.DOWN,
-#                     clob=state.info.down_clob_id,
-#                     side=Trade.Side.BUY,
-#                     amount=amount,
-#                     price=state.price.down,
-#                     dt=datetime.now().timestamp(),
-#                 )
-
-#     return Strategy.Result(trade, {"window": window})
 
 
 def poll_current_market(strategy: Strategy) -> LiveMarketState:

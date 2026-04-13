@@ -81,12 +81,18 @@ def plot_logfile(
     # Normalize records into a flat list of {market_outcome, trade, start_ts, slug}
     # regardless of whether the log is the old format (market records with embedded trades
     # and outcome) or the new format (one CompletedTrade record per trade, no market outcome).
-    is_new_format = records and "id" in records[0] and "strategy_name" in records[0]
+    # Format is detected per-record so mixed files are handled correctly.
     normalized = []
+    outcome_cache: dict[str, str] = {}
 
-    if is_new_format:
-        outcome_cache: dict[str, str] = {}
-        for r in records:
+    def _get_trades(state: dict) -> list:
+        trade = state.get("trade") or state.get("trades")
+        if not trade:
+            return []
+        return [trade] if isinstance(trade, dict) else trade
+
+    for r in records:
+        if "id" in r and "strategy_name" in r:
             slug = r["state"]["slug"]
             market_outcome = _fetch_outcome(slug, outcome_cache)
             if market_outcome is None:
@@ -97,14 +103,7 @@ def plot_logfile(
                 "start_ts": r["state"]["start_ts"],
                 "slug": slug,
             })
-    else:
-        def _get_trades(state: dict) -> list:
-            trade = state.get("trade") or state.get("trades")
-            if not trade:
-                return []
-            return [trade] if isinstance(trade, dict) else trade
-
-        for r in records:
+        else:
             for trade in _get_trades(r["state"]):
                 normalized.append({
                     "market_outcome": r["outcome"],
